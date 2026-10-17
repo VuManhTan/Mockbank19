@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Mock Bank - Quét QR</title>
+
+    <link
+        rel="stylesheet"
+        href="/bank/style.css"
+    >
+
+    <script
+        src="https://unpkg.com/html5-qrcode"
+    ></script>
+
+    <style>
+
+        .scanner {
+
+            max-width: 600px;
+
+            margin: 30px auto;
+
+            background: white;
+
+            padding: 25px;
+
+            border-radius: 20px;
+
+        }
+
+
+        #reader {
+
+            width: 100%;
+
+            margin-top: 20px;
+
+        }
+
+
+        .result {
+
+            margin-top: 20px;
+
+            padding: 15px;
+
+            background: #eff6ff;
+
+            border-radius: 10px;
+
+            word-break: break-all;
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+<div class="scanner">
+
+    <div class="bank-logo">
+
+        MOCK BANK
+
+    </div>
+
+
+    <h2>
+        📷 Quét mã QR
+    </h2>
+
+
+    <p>
+
+        Đưa camera điện thoại vào mã QR
+        đang hiển thị trên màn hình.
+
+    </p>
+
+
+    <div id="reader"></div>
+
+
+    <div
+        id="result"
+        class="result"
+        style="display:none"
+    ></div>
+
+
+    <button
+        onclick="location.href='/bank/dashboard'"
+    >
+
+        ← QUAY LẠI
+
+    </button>
+
+</div>
+
+
+<script>
+
+let scanner;
+
+
+function onScanSuccess(decodedText) {
+
+    console.log(
+        "QR:",
+        decodedText
+    );
+
+
+    if (scanner) {
+
+        scanner.clear()
+            .catch(() => {});
+    }
+
+
+    document
+        .getElementById("result")
+        .style.display = "block";
+
+
+    document
+        .getElementById("result")
+        .textContent =
+            "Đã quét: " + decodedText;
+
+
+    try {
+
+        const url =
+            new URL(decodedText);
+
+
+        const token =
+            url.searchParams.get("token");
+
+
+        if (token) {
+
+            location.href =
+                `/bank/payment?token=${encodeURIComponent(token)}`;
+
+            return;
+        }
+
+
+        const match =
+            url.pathname.match(
+                /\/pay\/([^/]+)/
+            );
+
+
+        if (match) {
+
+            location.href =
+                `/bank/payment?token=${encodeURIComponent(match[1])}`;
+
+            return;
+        }
+
+
+        alert(
+            "QR không phải mã thanh toán của hệ thống."
+        );
+
+
+    } catch (error) {
+
+        alert(
+            "QR không hợp lệ."
+        );
+    }
+
+}
+
+
+function onScanFailure(error) {
+
+    // Không cần hiển thị lỗi liên tục
+}
+
+
+scanner =
+    new Html5QrcodeScanner(
+
+        "reader",
+
+        {
+
+            fps: 10,
+
+            qrbox: {
+                width: 250,
+                height: 250
+            }
+
+        },
+
+        false
+
+    );
+
+
+scanner.render(
+    onScanSuccess,
+    onScanFailure
+);
+
+</script>
+
+</body>
+
+</html>

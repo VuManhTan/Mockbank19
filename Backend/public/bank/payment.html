@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Mock Bank - Xác nhận</title>
+
+    <link
+        rel="stylesheet"
+        href="/bank/style.css"
+    >
+
+    <style>
+
+        .payment {
+
+            max-width: 550px;
+
+            margin: 30px auto;
+
+            background: white;
+
+            border-radius: 20px;
+
+            padding: 30px;
+
+        }
+
+
+        .row {
+
+            display: flex;
+
+            justify-content: space-between;
+
+            padding: 15px 0;
+
+            border-bottom: 1px solid #e2e8f0;
+
+        }
+
+
+        .total {
+
+            font-size: 32px;
+
+            color: #1d4ed8;
+
+            font-weight: bold;
+
+            text-align: center;
+
+            margin: 25px 0;
+
+        }
+
+
+        .success {
+
+            text-align: center;
+
+            color: #16a34a;
+
+            font-size: 22px;
+
+            font-weight: bold;
+
+        }
+
+
+        .error {
+
+            color: #dc2626;
+
+            text-align: center;
+
+            margin-top: 15px;
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+<div class="payment">
+
+    <div class="bank-logo">
+
+        MOCK BANK
+
+    </div>
+
+
+    <h2>
+        Xác nhận thanh toán
+    </h2>
+
+
+    <div id="loading">
+
+        Đang lấy thông tin đơn hàng...
+
+    </div>
+
+
+    <div
+        id="paymentInfo"
+        style="display:none"
+    >
+
+        <div class="row">
+
+            <span>Người nhận</span>
+
+            <b>
+                LOA THÔNG BÁO
+            </b>
+
+        </div>
+
+
+        <div class="row">
+
+            <span>Đơn hàng</span>
+
+            <b id="orderId">
+                ---
+            </b>
+
+        </div>
+
+
+        <div class="row">
+
+            <span>Sản phẩm</span>
+
+            <b id="product">
+                ---
+            </b>
+
+        </div>
+
+
+        <div class="total" id="amount">
+
+            0 VNĐ
+
+        </div>
+
+
+        <div class="row">
+
+            <span>Người thanh toán</span>
+
+            <b id="sender">
+                ---
+            </b>
+
+        </div>
+
+
+        <button
+            onclick="confirmPayment()"
+        >
+
+            XÁC NHẬN THANH TOÁN
+
+        </button>
+
+
+        <button
+            onclick="location.href='/bank/dashboard'"
+        >
+
+            HỦY
+
+        </button>
+
+
+        <div
+            id="error"
+            class="error"
+        ></div>
+
+    </div>
+
+
+    <div
+        id="success"
+        style="display:none"
+    >
+
+        <div class="success">
+
+            ✓ THANH TOÁN THÀNH CÔNG
+
+        </div>
+
+
+        <div id="successInfo"></div>
+
+
+        <button onclick="returnToShop()">
+            QUAY VỀ CỬA HÀNG
+        </button>
+
+    </div>
+
+</div>
+
+
+<script src="/api-client.js"></script><script>
+
+const params =
+    new URLSearchParams(
+        location.search
+    );
+
+
+const token =
+    params.get("token");
+
+
+let order = null;
+
+
+async function loadPayment() {
+
+    if (!token) {
+
+        showError(
+            "Không có mã thanh toán."
+        );
+
+        return;
+    }
+
+
+    try {
+
+        const response =
+            await apiFetch(
+                `/api/bank/payment/${encodeURIComponent(token)}`
+            );
+
+        if (response.status === 401) {
+            location.href = `/bank/login?return=${encodeURIComponent(location.pathname + location.search)}`;
+            return;
+        }
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.message
+            );
+        }
+
+
+        order =
+            data.order;
+
+
+        document
+            .getElementById("loading")
+            .style.display = "none";
+
+
+        document
+            .getElementById("paymentInfo")
+            .style.display = "block";
+
+
+        document
+            .getElementById("orderId")
+            .textContent =
+                order.orderId;
+
+
+        document
+            .getElementById("product")
+            .textContent =
+                (order.items || []).map(item => `${item.name} × ${item.quantity}`).join(", ");
+
+
+        document
+            .getElementById("amount")
+            .textContent =
+                Number(order.amount)
+                    .toLocaleString("vi-VN")
+                + " VNĐ";
+
+
+        document
+            .getElementById("sender")
+            .textContent =
+                data.account.name;
+
+
+    } catch (error) {
+
+        showError(
+            error.message
+        );
+    }
+}
+
+
+async function confirmPayment() {
+
+    const button =
+        document.querySelector(
+            "#paymentInfo button"
+        );
+
+
+    button.disabled = true;
+
+    button.textContent =
+        "ĐANG XỬ LÝ...";
+
+
+    try {
+
+        const response =
+            await apiFetch(
+                "/api/bank/pay",
+                {
+
+                    method: "POST",
+
+                    headers: {
+
+                        "Content-Type":
+                            "application/json"
+
+                    },
+
+                    body: JSON.stringify({
+
+                        token
+
+                    })
+
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.message
+            );
+        }
+
+
+        document
+            .getElementById("paymentInfo")
+            .style.display = "none";
+
+
+        document
+            .getElementById("success")
+            .style.display = "block";
+
+
+        document
+            .getElementById("successInfo")
+            .innerHTML = `
+
+                <p>
+                    Đơn hàng:
+                    <b>${data.transaction.orderId}</b>
+                </p>
+
+                <p>
+                    Số tiền:
+                    <b>
+                        ${Number(data.transaction.amount)
+                            .toLocaleString("vi-VN")}
+                        VNĐ
+                    </b>
+                </p>
+
+                <p>
+                    Số dư còn lại:
+                    <b>
+                        ${Number(data.balance)
+                            .toLocaleString("vi-VN")}
+                        VNĐ
+                    </b>
+                </p>
+
+            `;
+
+
+    } catch (error) {
+
+        button.disabled = false;
+
+        button.textContent =
+            "XÁC NHẬN THANH TOÁN";
+
+
+        showError(
+            error.message
+        );
+    }
+}
+
+function returnToShop() {
+    if (!order || !order.orderId) {
+        location.href = "/shop/";
+        return;
+    }
+    location.href = `/shop/checkout.html?order=${encodeURIComponent(order.orderId)}`;
+}
+
+
+function showError(message) {
+
+    document
+        .getElementById("loading")
+        .textContent =
+            message;
+
+    document
+        .getElementById("loading")
+        .style.color =
+            "#dc2626";
+}
+
+
+loadPayment();
+
+</script>
+
+</body>
+
+</html>

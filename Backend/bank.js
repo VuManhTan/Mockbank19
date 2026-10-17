@@ -1,0 +1,112 @@
+const { db } = require("./firebase");
+
+const accounts = db.collection("bankAccounts");
+const transactions = db.collection("bankTransactions");
+
+const seedAccounts = [
+    { id: "TK001", username: "nguyenvana", password: "123456", name: "Nguyễn Văn A", accountNumber: "100001", balance: 2000000 },
+    { id: "TK002", username: "tranvanb", password: "123456", name: "Trần Văn B", accountNumber: "100002", balance: 5000000 },
+    { id: "TK003", username: "levanc", password: "123456", name: "Lê Văn C", accountNumber: "100003", balance: 1500000 }
+];
+
+function isAlreadyExists(error) {
+    return error.code === 6 || error.code === "6" || error.code === "already-exists";
+}
+
+async function ensureSeedAccounts() {
+    await Promise.all(seedAccounts.map(async account => {
+        try {
+            await accounts.doc(account.id).create({ ...account, createdAt: new Date().toISOString() });
+        } catch (error) {
+            if (!isAlreadyExists(error)) throw error;
+        }
+    }));
+}
+
+async function getAccountByUsername(username) {
+    let snapshot = await accounts.where("username", "==", String(username || "").trim()).limit(1).get();
+    if (snapshot.empty) {
+        await ensureSeedAccounts();
+        snapshot = await accounts.where("username", "==", String(username || "").trim()).limit(1).get();
+    }
+    return snapshot.empty ? null : { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+}
+
+async function login(username, password) {
+    const account = await getAccountByUsername(username);
+    return account && account.password === String(password) ? account : null;
+}
+
+function getSafeAccount(account) {
+    if (!account) return null;
+    return {
+        id: account.id,
+        username: account.username,
+        name: account.name,
+        accountNumber: account.accountNumber,
+        balance: account.balance
+    };
+}
+
+async function debitAccount(username, amount) {
+    const account = await getAccountByUsername(username);
+    if (!account) throw new Error("Không tìm thấy tài khoản");
+    if (!Number.isSafeInteger(Number(amount)) || Number(amount) <= 0) throw new Error("Số tiền không hợp lệ");
+    return db.runTransaction(async transaction => {
+        const ref = accounts.doc(account.id);
+        const snapshot = await transaction.get(ref);
+        if (!snapshot.exists) throw new Error("Không tìm thấy tài khoản");
+        const currentBalance = Number(snapshot.get("balance"));
+        if (currentBalance < amount) throw new Error("Số dư không đủ");
+        const balance = currentBalance - amount;
+        transaction.update(ref, { balance });
+        return balance;
+    });
+}
+
+async function refundAccount(username, amount) {
+    const account = await getAccountByUsername(username);
+    if (!account) throw new Error("Không tìm thấy tài khoản");
+    return db.runTransaction(async transaction => {
+        const ref = accounts.doc(account.id);
+        const snapshot = await transaction.get(ref);
+        if (!snapshot.exists) throw new Error("Không tìm thấy tài khoản");
+        const balance = Number(snapshot.get("balance")) + Number(amount);
+        transaction.update(ref, { balance });
+        return balance;
+    });
+}
+
+async function addTransaction(username, transaction) {
+    const account = await getAccountByUsername(username);
+    if (!account) throw new Error("Không tìm thấy tài khoản");
+    const record = { ...transaction, accountId: account.id, status: "PENDING" };
+    await transactions.doc(String(transaction.transactionId)).create(record);
+    return record;
+}
+
+async function setTransactionStatus(transactionId, status) {
+    await transactions.doc(String(transactionId)).update({ status });
+}
+
+async function getTransactions(username) {
+    const account = await getAccountByUsername(username);
+    if (!account) return [];
+    const snapshot = await transactions
+        .where("accountId", "==", account.id)
+        .orderBy("timestamp", "desc")
+        .limit(100)
+        .get();
+    return snapshot.docs.map(document => document.data());
+}
+
+module.exports = {
+    getAccountByUsername,
+    login,
+    getSafeAccount,
+    debitAccount,
+    refundAccount,
+    addTransaction,
+    setTransactionStatus,
+    getTransactions
+};

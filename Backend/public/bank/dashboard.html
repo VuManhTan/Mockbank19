@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Mock Bank</title>
+
+    <link
+        rel="stylesheet"
+        href="/bank/style.css"
+    >
+
+    <style>
+
+        .dashboard {
+
+            max-width: 600px;
+
+            margin: 30px auto;
+
+            padding: 20px;
+
+        }
+
+
+        .account {
+
+            background: white;
+
+            border-radius: 20px;
+
+            padding: 25px;
+
+        }
+
+
+        .balance {
+
+            margin-top: 25px;
+
+            padding: 25px;
+
+            border-radius: 15px;
+
+            background: #eff6ff;
+
+        }
+
+
+        .balance span {
+
+            color: #64748b;
+
+        }
+
+
+        .balance strong {
+
+            display: block;
+
+            font-size: 36px;
+
+            margin-top: 8px;
+
+            color: #1d4ed8;
+
+        }
+
+
+        .menu {
+
+            display: grid;
+
+            grid-template-columns: 1fr 1fr;
+
+            gap: 15px;
+
+            margin-top: 20px;
+
+        }
+
+
+        .menu button {
+
+            margin: 0;
+
+        }
+
+
+        .info {
+
+            margin-top: 20px;
+
+            line-height: 1.8;
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+<div class="dashboard">
+
+    <div class="account">
+
+        <div class="bank-logo">
+
+            MOCK BANK
+
+        </div>
+
+
+        <h2 id="name">
+
+            Đang tải...
+
+        </h2>
+
+
+        <div class="info">
+
+            Số tài khoản:
+
+            <b id="accountNumber">
+                ---
+            </b>
+
+        </div>
+
+
+        <div class="balance">
+
+            <span>
+                Số dư khả dụng
+            </span>
+
+            <strong id="balance">
+                0 VNĐ
+            </strong>
+
+        </div>
+
+
+        <div class="menu">
+
+            <button
+                onclick="location.href='/bank/scanner'"
+            >
+
+                📷 QUÉT QR
+
+            </button>
+
+
+            <button
+                onclick="loadTransactions()"
+            >
+
+                📋 LỊCH SỬ
+
+            </button>
+
+            <button onclick="location.href='/admin/orders'">
+                📦 QUẢN LÝ ĐƠN HÀNG
+            </button>
+
+        </div>
+
+
+        <div
+            id="history"
+            style="margin-top:20px"
+        ></div>
+
+
+        <button
+            onclick="logout()"
+        >
+
+            ĐĂNG XUẤT
+
+        </button>
+
+    </div>
+
+</div>
+
+
+<script src="/api-client.js"></script><script>
+
+async function loadAccount() {
+
+    const response =
+        await apiFetch("/api/bank/account");
+
+
+    if (!response.ok) {
+
+        location.href =
+            "/bank/login";
+
+        return;
+    }
+
+
+    const data =
+        await response.json();
+
+
+    document
+        .getElementById("name")
+        .textContent =
+            "Xin chào " + data.account.name;
+
+
+    document
+        .getElementById("accountNumber")
+        .textContent =
+            data.account.accountNumber;
+
+
+    document
+        .getElementById("balance")
+        .textContent =
+            Number(data.account.balance)
+                .toLocaleString("vi-VN")
+            + " VNĐ";
+}
+
+
+async function loadTransactions() {
+
+    const response =
+        await apiFetch(
+            "/api/bank/transactions"
+        );
+
+
+    const data =
+        await response.json();
+
+
+    const history =
+        document.getElementById("history");
+
+
+    if (!data.transactions.length) {
+
+        history.innerHTML =
+            "<p>Chưa có giao dịch.</p>";
+
+        return;
+    }
+
+
+    history.innerHTML =
+        data.transactions.map(tx => `
+
+            <div style="
+                padding:12px;
+                border-bottom:1px solid #ddd;
+            ">
+
+                <b>
+                    -${Number(tx.amount)
+                        .toLocaleString("vi-VN")}
+                    VNĐ
+                </b>
+
+                <br>
+
+                ${tx.content}
+
+                <br>
+
+                <small>
+                    ${new Date(tx.timestamp)
+                        .toLocaleString("vi-VN")}
+                </small>
+
+            </div>
+
+        `).join("");
+}
+
+
+async function logout() {
+    clearAuthToken('bank');
+
+    await apiFetch(
+        "/api/bank/logout",
+        {
+            method: "POST"
+        }
+    );
+
+
+    location.href =
+        "/bank/login";
+}
+
+
+loadAccount();
+
+</script>
+
+</body>
+
+</html>

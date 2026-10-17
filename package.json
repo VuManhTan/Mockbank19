@@ -1,0 +1,21 @@
+{
+  "name": "mockbank",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node --env-file=.env Backend/server.js",
+    "speaker:worker": "node --env-file=.env Backend/speaker-worker.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "firebase-admin": "^14.5.0",
+    "qrcode": "^1.5.4"
+  }
+}

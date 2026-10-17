@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Mock Bank - Đăng nhập</title>
+
+    <link
+        rel="stylesheet"
+        href="/bank/style.css"
+    >
+
+</head>
+
+
+<body>
+
+<div class="bank-container">
+
+    <div class="bank-card">
+
+        <div class="bank-logo">
+
+            MOCK BANK
+
+        </div>
+
+        <p class="subtitle">
+
+            Ngân hàng giả lập
+
+        </p>
+
+
+        <form id="loginForm">
+
+            <label>
+                Tên đăng nhập
+            </label>
+
+            <input
+                id="username"
+                type="text"
+                placeholder="nguyenvana"
+                required
+            >
+
+
+            <label>
+                Mật khẩu
+            </label>
+
+            <input
+                id="password"
+                type="password"
+                placeholder="123456"
+                required
+            >
+
+
+            <button type="submit">
+
+                ĐĂNG NHẬP
+
+            </button>
+
+        </form>
+
+
+        <div
+            id="error"
+            class="error"
+        ></div>
+
+
+        <div class="demo-account">
+
+            <strong>Tài khoản demo</strong>
+
+            <br>
+
+            Username:
+            <b>nguyenvana</b>
+
+            <br>
+
+            Password:
+            <b>123456</b>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<script src="/api-client.js"></script><script>
+
+document
+    .getElementById("loginForm")
+    .addEventListener("submit", async function(event) {
+
+        event.preventDefault();
+
+
+        const username =
+            document
+                .getElementById("username")
+                .value;
+
+
+        const password =
+            document
+                .getElementById("password")
+                .value;
+
+
+        const error =
+            document.getElementById("error");
+
+
+        error.textContent = "";
+
+
+        try {
+
+            const response =
+                await apiFetch("/api/bank/login", {
+
+                    method: "POST",
+
+                    headers: {
+
+                        "Content-Type":
+                            "application/json"
+
+                    },
+
+                    body: JSON.stringify({
+                        username,
+                        password
+                    })
+
+                });
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.message
+                );
+            }
+
+
+            saveAuthToken('bank', data.token);
+            const destination = new URLSearchParams(location.search).get("return") || "/bank/dashboard";
+            location.href = destination.startsWith("/") && !destination.startsWith("//") ? destination : "/bank/dashboard";
+
+
+        } catch (err) {
+
+            error.textContent =
+                err.message;
+        }
+
+    });
+
+</script>
+
+</body>
+
+</html>

@@ -1,0 +1,25 @@
+{
+  "hosting": {
+    "public": "Backend/public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "redirects": [
+      { "source": "/", "destination": "/shop/", "type": 302 },
+      { "source": "/shop", "destination": "/shop/", "type": 301 },
+      { "source": "/account/", "destination": "/account", "type": 301 }
+    ],
+    "rewrites": [
+      { "source": "/account", "destination": "/shop/account.html" },
+      { "source": "/admin/login", "destination": "/admin/login.html" },
+      { "source": "/admin/orders", "destination": "/admin/orders.html" },
+      { "source": "/admin/products", "destination": "/admin/products.html" },
+      { "source": "/bank/login", "destination": "/bank/login.html" },
+      { "source": "/bank/dashboard", "destination": "/bank/dashboard.html" },
+      { "source": "/bank/scanner", "destination": "/bank/scanner.html" },
+      { "source": "/bank/payment", "destination": "/bank/payment.html" }
+    ]
+  }
+}

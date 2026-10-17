@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: mockbank-loathongbaochuyenkhoan-aaab1
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: npm install
+    startCommand: node Backend/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FIREBASE_PROJECT_ID
+        value: loathongbaochuyenkhoan-aaab1
+      - key: PUBLIC_BASE_URL
+        value: https://loathongbaochuyenkhoan-aaab1.web.app
+      - key: FRONTEND_ORIGINS
+        value: https://loathongbaochuyenkhoan-aaab1.web.app,https://loathongbaochuyenkhoan-aaab1.firebaseapp.com
+      - key: AUTH_TOKEN_SECRET
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false
+      - key: MOCK_BANK_WEBHOOK_SECRET
+        sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: TTS_MODE
+        value: queue
