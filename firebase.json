@@ -8,7 +8,6 @@
     ],
     "redirects": [
       { "source": "/", "destination": "/shop/", "type": 302 },
-      { "source": "/shop", "destination": "/shop/", "type": 301 },
       { "source": "/account/", "destination": "/account", "type": 301 }
     ],
     "rewrites": [
