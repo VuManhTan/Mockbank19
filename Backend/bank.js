@@ -259,16 +259,9 @@ async function registerBankAccount(input) {
     const name = String(input.name || "").trim();
     const username = String(input.username || "").trim();
     const password = input.password;
-    for (let attempt = 0; attempt < 5; attempt++) {
-        const accountNumber = String(crypto.randomInt(10000000, 100000000));
-        try {
-            return await createBankAccount({ name, username, password, accountNumber, balance: 0 }, "self-registration");
-        } catch (error) {
-            if (/Tên đăng nhập đã được sử dụng/.test(error.message)) throw error;
-            if (!/Số tài khoản đã được sử dụng/.test(error.message) || attempt === 4) throw error;
-        }
-    }
-    throw new Error("Không thể cấp số tài khoản lúc này");
+    const accountNumber = String(input.accountNumber || "").trim();
+    if (!/^\d{7,24}$/.test(accountNumber)) throw new Error("Số tài khoản phải có 7-24 chữ số");
+    return createBankAccount({ name, username, password, accountNumber, balance: 0 }, "self-registration");
 }
 
 async function deactivateBankAccount(accountId, adminUsername) {
