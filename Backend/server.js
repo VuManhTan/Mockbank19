@@ -55,6 +55,8 @@ const {
     setTransactionStatus,
     getTransactions,
     getAllSafeAccounts,
+    createBankAccount,
+    deactivateBankAccount,
     adjustAccountBalance
 } = require("./bank");
 
@@ -174,6 +176,18 @@ function authenticateRole(role) {
             return res.status(401).json({ success: false, message: "Phiên đăng nhập hết hạn hoặc không hợp lệ.", code: `${role.toUpperCase()}_LOGIN_REQUIRED` });
         }
         req.auth = auth;
+        if (role === "bank") {
+            getAccountByUsername(auth.data).then(account => {
+                if (!account || account.active === false) {
+                    return res.status(401).json({ success: false, message: "Tài khoản ngân hàng không còn hoạt động.", code: "BANK_LOGIN_REQUIRED" });
+                }
+                next();
+            }).catch(error => {
+                console.error("Không xác minh được trạng thái tài khoản ngân hàng:", error);
+                res.status(503).json({ success: false, message: "Không thể xác minh tài khoản ngân hàng." });
+            });
+            return;
+        }
         next();
     };
 }
@@ -258,13 +272,33 @@ app.get("/api/bank/admin/accounts", requireBankAdminApi, async (_req, res) => {
         res.status(503).json({ success: false, message: "Không tải được danh sách tài khoản." });
     }
 });
+app.post("/api/bank/admin/accounts", requireBankAdminApi, async (req, res) => {
+    try {
+        const account = await createBankAccount(req.body || {}, req.auth.data);
+        res.status(201).json({ success: true, account });
+    } catch (error) {
+        const conflict = /đã được sử dụng/.test(error.message);
+        const validation = /Tên cần|Tên đăng nhập|Mật khẩu|Số tài khoản|Số dư ban đầu/.test(error.message);
+        res.status(conflict ? 409 : validation ? 400 : 503).json({ success: false, message: conflict || validation ? error.message : "Không thể tạo tài khoản." });
+    }
+});
+app.delete("/api/bank/admin/accounts/:id", requireBankAdminApi, async (req, res) => {
+    try {
+        await deactivateBankAccount(req.params.id, req.auth.data);
+        res.json({ success: true });
+    } catch (error) {
+        const missing = /Không tìm thấy tài khoản/.test(error.message);
+        const conflict = /Tài khoản đã bị xóa/.test(error.message);
+        res.status(missing ? 404 : conflict ? 409 : 503).json({ success: false, message: missing || conflict ? error.message : "Không thể xóa tài khoản." });
+    }
+});
 app.post("/api/bank/admin/accounts/:id/balance", requireBankAdminApi, async (req, res) => {
     try {
         const { direction, amount } = req.body || {};
         const result = await adjustAccountBalance(req.params.id, direction, amount, req.auth.data);
         res.json({ success: true, ...result });
     } catch (error) {
-        const validation = /Số tiền|Loại điều chỉnh|Số dư không đủ|Không tìm thấy tài khoản/.test(error.message);
+        const validation = /Số tiền|Loại điều chỉnh|Số dư không đủ|Không tìm thấy tài khoản|Tài khoản đã bị vô hiệu hóa/.test(error.message);
         res.status(validation ? 400 : 503).json({ success: false, message: validation ? error.message : "Không thể điều chỉnh số dư." });
     }
 });
