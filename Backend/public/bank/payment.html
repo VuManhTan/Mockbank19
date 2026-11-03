@@ -255,7 +255,7 @@ async function loadPayment() {
             );
 
         if (response.status === 401) {
-            location.href = `/bank/user/login?return=${encodeURIComponent(location.pathname + location.search)}`;
+            location.href = `/bank/login?return=${encodeURIComponent(location.pathname + location.search)}`;
             return;
         }
 

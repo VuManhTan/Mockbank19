@@ -313,7 +313,7 @@ app.get("/bank/login", (req, res) => {
             __dirname,
             "public",
             "bank",
-            "admin-login.html"
+            "login.html"
         )
     );
 
@@ -339,7 +339,8 @@ app.get(
 
     }
 );
-app.get("/bank/user/login", (_req, res) => res.sendFile(path.join(__dirname, "public", "bank", "login.html")));
+app.get("/bank/user/login", (_req, res) => res.redirect("/bank/login"));
+app.get("/bank/admin/login", (_req, res) => res.sendFile(path.join(__dirname, "public", "bank", "admin-login.html")));
 
 
 // ==========================================
