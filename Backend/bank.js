@@ -1,4 +1,5 @@
 const { db } = require("./firebase");
+const crypto = require("crypto");
 
 const accounts = db.collection("bankAccounts");
 const transactions = db.collection("bankTransactions");
@@ -35,6 +36,20 @@ async function getAccountByUsername(username) {
 async function login(username, password) {
     const account = await getAccountByUsername(username);
     return account && account.password === String(password) ? account : null;
+}
+
+function loginBankAdmin(username, password) {
+    const configuredUsername = process.env.BANK_ADMIN_USERNAME;
+    const configuredPassword = process.env.BANK_ADMIN_PASSWORD;
+    if (!configuredUsername || !configuredPassword) return null;
+    const matches = (actual, expected) => {
+        const a = Buffer.from(String(actual || ""));
+        const b = Buffer.from(String(expected || ""));
+        return a.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
+    };
+    return matches(String(username || "").trim(), configuredUsername) && matches(password, configuredPassword)
+        ? { username: configuredUsername }
+        : null;
 }
 
 function getSafeAccount(account) {
@@ -136,6 +151,7 @@ async function adjustAccountBalance(accountId, direction, amount, adminUsername)
 module.exports = {
     getAccountByUsername,
     login,
+    loginBankAdmin,
     getSafeAccount,
     debitAccount,
     refundAccount,

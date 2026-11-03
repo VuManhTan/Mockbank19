@@ -46,6 +46,7 @@ const {
 
 const {
     login,
+    loginBankAdmin,
     getSafeAccount,
     getAccountByUsername,
     debitAccount,
@@ -162,6 +163,7 @@ app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
 // Stateless bearer authentication is used because the Firebase and Render
 // hostnames are different sites and cross-site cookies are not dependable.
 function requireBankApi(req, res, next) { return authenticateRole("bank")(req, res, next); }
+function requireBankAdminApi(req, res, next) { return authenticateRole("bank-admin")(req, res, next); }
 function requireCustomerApi(req, res, next) { return authenticateRole("customer")(req, res, next); }
 function requireAdminApi(req, res, next) { return authenticateRole("admin")(req, res, next); }
 function authenticateRole(role) {
@@ -200,7 +202,8 @@ app.get("/account/", (req, res) => res.sendFile(path.join(__dirname, "public", "
 app.get("/admin/login", (req, res) => res.sendFile(path.join(__dirname, "public", "admin", "login.html")));
 app.get("/admin/orders", (req, res) => res.sendFile(path.join(__dirname, "public", "admin", "orders.html")));
 app.get("/admin/products", (req, res) => res.sendFile(path.join(__dirname, "public", "admin", "products.html")));
-app.get("/admin/balance", (req, res) => res.sendFile(path.join(__dirname, "public", "admin", "balance.html")));
+app.get("/admin/balance", (_req, res) => res.redirect("/bank/admin/balance"));
+app.get("/bank/admin/balance", (_req, res) => res.sendFile(path.join(__dirname, "public", "bank", "admin-balance.html")));
 
 app.post("/api/customer/register", async (req, res) => {
     try {
@@ -247,7 +250,7 @@ app.post("/api/admin/login", async (req, res) => {
 });
 app.get("/api/admin/me", requireAdminApi, (req, res) => res.json({ success: true, username: req.auth.data }));
 app.post("/api/admin/logout", (_req, res) => res.json({ success: true }));
-app.get("/api/admin/bank-accounts", requireAdminApi, async (_req, res) => {
+app.get("/api/bank/admin/accounts", requireBankAdminApi, async (_req, res) => {
     try {
         res.json({ success: true, accounts: await getAllSafeAccounts() });
     } catch (error) {
@@ -255,7 +258,7 @@ app.get("/api/admin/bank-accounts", requireAdminApi, async (_req, res) => {
         res.status(503).json({ success: false, message: "Không tải được danh sách tài khoản." });
     }
 });
-app.post("/api/admin/bank-accounts/:id/balance", requireAdminApi, async (req, res) => {
+app.post("/api/bank/admin/accounts/:id/balance", requireBankAdminApi, async (req, res) => {
     try {
         const { direction, amount } = req.body || {};
         const result = await adjustAccountBalance(req.params.id, direction, amount, req.auth.data);
@@ -371,6 +374,11 @@ app.post(
             });
         }
 
+
+        const bankAdmin = loginBankAdmin(username, password);
+        if (bankAdmin) {
+            return res.json({ success: true, token: issueToken("bank-admin", bankAdmin.username), account: null, role: "bank-admin" });
+        }
 
         const account =
             await login(

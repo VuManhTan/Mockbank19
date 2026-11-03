@@ -147,7 +147,7 @@ document
 
 
             saveAuthToken('bank', data.token);
-            const destination = new URLSearchParams(location.search).get("return") || "/bank/dashboard";
+            const destination = new URLSearchParams(location.search).get("return") || (data.role === "bank-admin" ? "/bank/admin/balance" : "/bank/dashboard");
             location.href = destination.startsWith("/") && !destination.startsWith("//") ? destination : "/bank/dashboard";
 
 
