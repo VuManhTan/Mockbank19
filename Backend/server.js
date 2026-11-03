@@ -1383,6 +1383,9 @@ app.listen(
             console.log("--------------------------------------");
         }
 
+        const bankAdminBase = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+        console.log(`Admin ngân hàng: ${bankAdminBase}/bank/admin/balance`);
+
         console.log(
             "======================================"
         );
