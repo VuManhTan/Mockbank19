@@ -1375,6 +1375,10 @@ app.post(
 
 function getStartupBases() {
     const bases = new Set();
+    if (process.env.RENDER_EXTERNAL_URL) {
+        bases.add(process.env.RENDER_EXTERNAL_URL.replace(/\/$/, ""));
+        return [...bases];
+    }
     if (process.env.PUBLIC_BASE_URL) bases.add(process.env.PUBLIC_BASE_URL.replace(/\/$/, ""));
     bases.add(`http://localhost:${PORT}`);
     for (const addresses of Object.values(os.networkInterfaces())) {
