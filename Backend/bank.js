@@ -100,6 +100,39 @@ async function getTransactions(username) {
     return snapshot.docs.map(document => document.data());
 }
 
+async function getAllSafeAccounts() {
+    await ensureSeedAccounts();
+    const snapshot = await accounts.orderBy("accountNumber").get();
+    return snapshot.docs.map(document => getSafeAccount({ id: document.id, ...document.data() }));
+}
+
+async function adjustAccountBalance(accountId, direction, amount, adminUsername) {
+    if (!Number.isSafeInteger(amount) || amount <= 0) throw new Error("Số tiền phải là số nguyên dương");
+    if (!["add", "subtract"].includes(direction)) throw new Error("Loại điều chỉnh không hợp lệ");
+    const ref = accounts.doc(String(accountId || ""));
+    const transactionRef = transactions.doc();
+    return db.runTransaction(async transaction => {
+        const snapshot = await transaction.get(ref);
+        if (!snapshot.exists) throw new Error("Không tìm thấy tài khoản");
+        const current = Number(snapshot.get("balance"));
+        const balance = direction === "add" ? current + amount : current - amount;
+        if (!Number.isSafeInteger(balance) || balance < 0) throw new Error("Số dư không đủ hoặc vượt giới hạn");
+        const timestamp = new Date().toISOString();
+        transaction.update(ref, { balance });
+        transaction.create(transactionRef, {
+            transactionId: transactionRef.id,
+            accountId: ref.id,
+            amount,
+            type: direction === "add" ? "ADMIN_CREDIT" : "ADMIN_DEBIT",
+            content: `Admin ${adminUsername} ${direction === "add" ? "cộng" : "trừ"} số dư`,
+            adminUsername,
+            timestamp,
+            status: "COMPLETED"
+        });
+        return { balance };
+    });
+}
+
 module.exports = {
     getAccountByUsername,
     login,
@@ -108,5 +141,7 @@ module.exports = {
     refundAccount,
     addTransaction,
     setTransactionStatus,
-    getTransactions
+    getTransactions,
+    getAllSafeAccounts,
+    adjustAccountBalance
 };

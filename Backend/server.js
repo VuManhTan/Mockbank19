@@ -52,7 +52,9 @@ const {
     refundAccount,
     addTransaction,
     setTransactionStatus,
-    getTransactions
+    getTransactions,
+    getAllSafeAccounts,
+    adjustAccountBalance
 } = require("./bank");
 
 
@@ -198,6 +200,7 @@ app.get("/account/", (req, res) => res.sendFile(path.join(__dirname, "public", "
 app.get("/admin/login", (req, res) => res.sendFile(path.join(__dirname, "public", "admin", "login.html")));
 app.get("/admin/orders", (req, res) => res.sendFile(path.join(__dirname, "public", "admin", "orders.html")));
 app.get("/admin/products", (req, res) => res.sendFile(path.join(__dirname, "public", "admin", "products.html")));
+app.get("/admin/balance", (req, res) => res.sendFile(path.join(__dirname, "public", "admin", "balance.html")));
 
 app.post("/api/customer/register", async (req, res) => {
     try {
@@ -244,6 +247,24 @@ app.post("/api/admin/login", async (req, res) => {
 });
 app.get("/api/admin/me", requireAdminApi, (req, res) => res.json({ success: true, username: req.auth.data }));
 app.post("/api/admin/logout", (_req, res) => res.json({ success: true }));
+app.get("/api/admin/bank-accounts", requireAdminApi, async (_req, res) => {
+    try {
+        res.json({ success: true, accounts: await getAllSafeAccounts() });
+    } catch (error) {
+        console.error("Không tải được tài khoản ngân hàng:", error);
+        res.status(503).json({ success: false, message: "Không tải được danh sách tài khoản." });
+    }
+});
+app.post("/api/admin/bank-accounts/:id/balance", requireAdminApi, async (req, res) => {
+    try {
+        const { direction, amount } = req.body || {};
+        const result = await adjustAccountBalance(req.params.id, direction, amount, req.auth.data);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        const validation = /Số tiền|Loại điều chỉnh|Số dư không đủ|Không tìm thấy tài khoản/.test(error.message);
+        res.status(validation ? 400 : 503).json({ success: false, message: validation ? error.message : "Không thể điều chỉnh số dư." });
+    }
+});
 
 // MOCK BANK - LOGIN
 // ==========================================

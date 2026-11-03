@@ -273,7 +273,7 @@ async function loadTransactions() {
             ">
 
                 <b>
-                    -${Number(tx.amount)
+                    ${tx.type === "ADMIN_CREDIT" ? "+" : "-"}${Number(tx.amount)
                         .toLocaleString("vi-VN")}
                     VNĐ
                 </b>
