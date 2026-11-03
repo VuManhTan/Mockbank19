@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mock Bank - Quản trị viên ngân hàng</title>
+  <link rel="stylesheet" href="/bank/style.css">
+  <style>.admin-note{font-size:13px;color:#64748b;text-align:center;line-height:1.5}.error{min-height:20px}</style>
+</head>
+<body>
+  <main class="bank-container"><section class="bank-card">
+    <div class="bank-logo">MOCK BANK</div>
+    <p class="subtitle">Quản trị viên ngân hàng</p>
+    <form id="adminLoginForm">
+      <label for="username">Tên đăng nhập</label>
+      <input id="username" name="username" type="text" autocomplete="username" required>
+      <label for="password">Mật khẩu</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <button type="submit">ĐĂNG NHẬP</button>
+    </form>
+    <p class="admin-note">Đăng nhập bằng tài khoản quản trị ngân hàng.</p>
+    <div id="error" class="error" role="alert"></div>
+  </section></main>
+  <script src="/api-client.js?v=20261103-5"></script><script>
+    const form=document.querySelector('#adminLoginForm'),errorBox=document.querySelector('#error');
+    form.addEventListener('submit',async event=>{event.preventDefault();errorBox.textContent='';try{const response=await apiFetch('/api/bank/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(form)))});const data=await response.json();if(!response.ok)throw Error(data.message||'Đăng nhập thất bại');saveAuthToken('bank',data.token);location.href='/bank/admin/balance'}catch(error){errorBox.textContent=error.message}});
+  </script>
+</body>
+</html>

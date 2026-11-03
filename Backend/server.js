@@ -313,7 +313,7 @@ app.get("/bank/login", (req, res) => {
             __dirname,
             "public",
             "bank",
-            "login.html"
+            "admin-login.html"
         )
     );
 
@@ -339,6 +339,7 @@ app.get(
 
     }
 );
+app.get("/bank/user/login", (_req, res) => res.sendFile(path.join(__dirname, "public", "bank", "login.html")));
 
 
 // ==========================================
@@ -410,11 +411,6 @@ app.post(
         }
 
 
-        const bankAdmin = loginBankAdmin(username, password);
-        if (bankAdmin) {
-            return res.json({ success: true, token: issueToken("bank-admin", bankAdmin.username), account: null, role: "bank-admin" });
-        }
-
         const account =
             await login(
                 username,
@@ -453,6 +449,12 @@ app.post(
 
     }
 );
+
+app.post("/api/bank/admin/login", (req, res) => {
+    const admin = loginBankAdmin((req.body || {}).username, (req.body || {}).password);
+    if (!admin) return res.status(401).json({ success: false, message: "Tên đăng nhập hoặc mật khẩu admin không đúng." });
+    res.json({ success: true, token: issueToken("bank-admin", admin.username), role: "bank-admin" });
+});
 
 app.post("/api/bank/register", async (req, res) => {
     try {

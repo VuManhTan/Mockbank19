@@ -32,7 +32,7 @@
     };
     const retryDelays = [2000, 5000, 10000, 15000, 20000, 20000];
     const retryableMethods = ['GET', 'HEAD'];
-    const retryablePosts = ['/api/customer/login', '/api/admin/login', '/api/bank/login', '/api/customer/logout', '/api/admin/logout', '/api/bank/logout'];
+    const retryablePosts = ['/api/customer/login', '/api/admin/login', '/api/bank/login', '/api/bank/admin/login', '/api/customer/logout', '/api/admin/logout', '/api/bank/logout'];
     const mayRetry = retryableMethods.includes(method) || (method === 'POST' && retryablePosts.includes(requestUrl.pathname));
     const send = async attempt => {
       try {
