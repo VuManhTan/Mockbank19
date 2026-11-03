@@ -130,6 +130,84 @@ async function getTransactions(username) {
     return snapshot.docs.map(document => document.data());
 }
 
+async function transferFunds(senderUsername, recipientAccountNumber, amount, content = "") {
+    const safeAmount = Number(amount);
+    const accountNumber = String(recipientAccountNumber || "").trim();
+    const memo = String(content || "").trim().slice(0, 200);
+    if (!Number.isSafeInteger(safeAmount) || safeAmount <= 0) throw new Error("Số tiền phải là số nguyên dương");
+    if (!/^\d{6,24}$/.test(accountNumber)) throw new Error("Số tài khoản nhận không hợp lệ");
+    const sender = await getAccountByUsername(senderUsername);
+    if (!sender) throw new Error("Không tìm thấy tài khoản gửi");
+
+    const senderRef = accounts.doc(sender.id);
+    const recipientQuery = accounts.where("accountNumber", "==", accountNumber).limit(1);
+    const senderHistoryRef = transactions.doc();
+    const recipientHistoryRef = transactions.doc();
+    const transferId = crypto.randomUUID();
+    const timestamp = new Date().toISOString();
+    return db.runTransaction(async transaction => {
+        const senderSnapshot = await transaction.get(senderRef);
+        const recipientMatches = await transaction.get(recipientQuery);
+        if (!senderSnapshot.exists || senderSnapshot.get("active") === false) throw new Error("Tài khoản gửi không còn hoạt động");
+        if (recipientMatches.empty) throw new Error("Không tìm thấy tài khoản nhận");
+        const recipientSnapshot = recipientMatches.docs[0];
+        const recipientRef = recipientSnapshot.ref;
+        if (recipientSnapshot.get("active") === false) throw new Error("Tài khoản nhận không còn hoạt động");
+        if (recipientRef.id === senderRef.id) throw new Error("Không thể chuyển tiền vào chính tài khoản này");
+
+        const senderBalance = Number(senderSnapshot.get("balance"));
+        const recipientBalance = Number(recipientSnapshot.get("balance"));
+        if (!Number.isSafeInteger(senderBalance - safeAmount) || senderBalance < safeAmount) throw new Error("Số dư không đủ");
+        if (!Number.isSafeInteger(recipientBalance + safeAmount)) throw new Error("Số dư tài khoản nhận vượt giới hạn");
+        const senderBalanceAfter = senderBalance - safeAmount;
+        const recipientBalanceAfter = recipientBalance + safeAmount;
+        const senderName = senderSnapshot.get("name");
+        const senderAccountNumber = senderSnapshot.get("accountNumber");
+        const recipientName = recipientSnapshot.get("name");
+        const recipientAccountNumberValue = recipientSnapshot.get("accountNumber");
+
+        transaction.update(senderRef, { balance: senderBalanceAfter });
+        transaction.update(recipientRef, { balance: recipientBalanceAfter });
+        transaction.create(senderHistoryRef, {
+            transactionId: senderHistoryRef.id,
+            transferId,
+            accountId: senderRef.id,
+            type: "TRANSFER_OUT",
+            direction: "OUT",
+            amount: safeAmount,
+            counterpartyName: recipientName,
+            counterpartyAccountNumber: recipientAccountNumberValue,
+            senderName,
+            senderAccountNumber,
+            recipientName,
+            recipientAccountNumber: recipientAccountNumberValue,
+            content: memo || "Chuyển tiền",
+            timestamp,
+            status: "COMPLETED",
+            balanceAfter: senderBalanceAfter
+        });
+        transaction.create(recipientHistoryRef, {
+            transactionId: recipientHistoryRef.id,
+            transferId,
+            accountId: recipientRef.id,
+            type: "TRANSFER_IN",
+            direction: "IN",
+            amount: safeAmount,
+            counterpartyName: senderName,
+            counterpartyAccountNumber: senderAccountNumber,
+            senderName,
+            senderAccountNumber,
+            recipientName,
+            recipientAccountNumber: recipientAccountNumberValue,
+            content: memo || "Nhận tiền chuyển khoản",
+            timestamp,
+            status: "COMPLETED",
+            balanceAfter: recipientBalanceAfter
+        });
+        return { transferId, balance: senderBalanceAfter, recipient: { name: recipientName, accountNumber: recipientAccountNumberValue } };
+    });
+}
+
 async function getAllSafeAccounts() {
     await ensureSeedAccounts();
     const snapshot = await accounts.orderBy("accountNumber").get();
@@ -254,6 +332,7 @@ module.exports = {
     addTransaction,
     setTransactionStatus,
     getTransactions,
+    transferFunds,
     getAllSafeAccounts,
     createBankAccount,
     registerBankAccount,

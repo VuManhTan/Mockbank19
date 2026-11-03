@@ -54,6 +54,7 @@ const {
     addTransaction,
     setTransactionStatus,
     getTransactions,
+    transferFunds,
     getAllSafeAccounts,
     createBankAccount,
     registerBankAccount,
@@ -540,6 +541,17 @@ app.get(
 
     }
 );
+
+app.post("/api/bank/transfer", requireBankApi, async (req, res) => {
+    try {
+        const { recipientAccountNumber, amount, content } = req.body || {};
+        const result = await transferFunds(req.auth.data, recipientAccountNumber, amount, content);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        const validation = /Số tiền|Số tài khoản nhận|Tài khoản gửi|Tài khoản nhận|Không tìm thấy tài khoản|Không thể chuyển tiền|Số dư không đủ|vượt giới hạn/.test(error.message);
+        res.status(validation ? 400 : 503).json({ success: false, message: validation ? error.message : "Không thể thực hiện chuyển khoản lúc này." });
+    }
+});
 
 
 // ==========================================

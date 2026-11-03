@@ -1,316 +1,45 @@
-<!DOCTYPE html>
-
+<!doctype html>
 <html lang="vi">
-
 <head>
-
-    <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>Mock Bank</title>
-
-    <link
-        rel="stylesheet"
-        href="/bank/style.css"
-    >
-
-    <style>
-
-        .dashboard {
-
-            max-width: 600px;
-
-            margin: 30px auto;
-
-            padding: 20px;
-
-        }
-
-
-        .account {
-
-            background: white;
-
-            border-radius: 20px;
-
-            padding: 25px;
-
-        }
-
-
-        .balance {
-
-            margin-top: 25px;
-
-            padding: 25px;
-
-            border-radius: 15px;
-
-            background: #eff6ff;
-
-        }
-
-
-        .balance span {
-
-            color: #64748b;
-
-        }
-
-
-        .balance strong {
-
-            display: block;
-
-            font-size: 36px;
-
-            margin-top: 8px;
-
-            color: #1d4ed8;
-
-        }
-
-
-        .menu {
-
-            display: grid;
-
-            grid-template-columns: 1fr 1fr;
-
-            gap: 15px;
-
-            margin-top: 20px;
-
-        }
-
-
-        .menu button {
-
-            margin: 0;
-
-        }
-
-
-        .info {
-
-            margin-top: 20px;
-
-            line-height: 1.8;
-
-        }
-
-    </style>
-
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mock Bank - Tài khoản</title>
+  <link rel="stylesheet" href="/bank/style.css">
+  <style>
+    .dashboard{max-width:900px;margin:28px auto;padding:0 18px}.account{background:#fff;border-radius:20px;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.2)}
+    .header{display:flex;justify-content:space-between;align-items:center;gap:12px}.header .bank-logo{text-align:left}.header button{width:auto;margin:0;padding:10px 14px}
+    .account-info{color:#64748b}.balance{margin:20px 0;padding:22px;border-radius:15px;background:#eff6ff}.balance span{color:#64748b}.balance strong{display:block;margin-top:7px;color:#1d4ed8;font-size:34px}
+    .quick-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px}.quick-actions button{margin:0}
+    .panel{margin-top:20px;padding:20px;border:1px solid #dbeafe;border-radius:14px;background:#fff}.panel h2{margin:0 0 14px;color:#1e3a8a;font-size:19px}
+    .form label{margin:12px 0 7px;font-size:14px}.form input{padding:12px;font-size:15px}.form button{margin-top:16px}
+    .notice{min-height:20px;color:#1d4ed8;font-size:14px;line-height:1.5}.history{display:grid;gap:10px}.transaction{padding:14px;border:1px solid #e2e8f0;border-radius:11px;background:#f8fafc;font-size:14px;line-height:1.55}
+    .transaction-head{display:flex;justify-content:space-between;gap:12px}.amount{font-weight:700;white-space:nowrap}.amount.in{color:#15803d}.amount.out{color:#b91c1c}.transaction-detail{margin-top:7px;color:#334155}.transaction-meta{margin-top:8px;color:#64748b;font-size:12px}
+    @media(max-width:600px){.account{padding:17px}.balance strong{font-size:28px}.quick-actions{grid-template-columns:1fr}.transaction-head{flex-direction:column;gap:2px}}
+  </style>
 </head>
-
-
 <body>
-
-<div class="dashboard">
-
-    <div class="account">
-
-        <div class="bank-logo">
-
-            MOCK BANK
-
-        </div>
-
-
-        <h2 id="name">
-
-            Đang tải...
-
-        </h2>
-
-
-        <div class="info">
-
-            Số tài khoản:
-
-            <b id="accountNumber">
-                ---
-            </b>
-
-        </div>
-
-
-        <div class="balance">
-
-            <span>
-                Số dư khả dụng
-            </span>
-
-            <strong id="balance">
-                0 VNĐ
-            </strong>
-
-        </div>
-
-
-        <div class="menu">
-
-            <button
-                onclick="location.href='/bank/scanner'"
-            >
-
-                📷 QUÉT QR
-
-            </button>
-
-
-            <button
-                onclick="loadTransactions()"
-            >
-
-                📋 LỊCH SỬ
-
-            </button>
-
-        </div>
-
-
-        <div
-            id="history"
-            style="margin-top:20px"
-        ></div>
-
-
-        <button
-            onclick="logout()"
-        >
-
-            ĐĂNG XUẤT
-
-        </button>
-
-    </div>
-
-</div>
-
-
-<script src="/api-client.js?v=20261017-3"></script><script>
-
-async function loadAccount() {
-
-    const response =
-        await apiFetch("/api/bank/account");
-
-
-    if (!response.ok) {
-
-        location.href =
-            "/bank/login";
-
-        return;
-    }
-
-
-    const data =
-        await response.json();
-
-
-    document
-        .getElementById("name")
-        .textContent =
-            "Xin chào " + data.account.name;
-
-
-    document
-        .getElementById("accountNumber")
-        .textContent =
-            data.account.accountNumber;
-
-
-    document
-        .getElementById("balance")
-        .textContent =
-            Number(data.account.balance)
-                .toLocaleString("vi-VN")
-            + " VNĐ";
-}
-
-
-async function loadTransactions() {
-
-    const response =
-        await apiFetch(
-            "/api/bank/transactions"
-        );
-
-
-    const data =
-        await response.json();
-
-
-    const history =
-        document.getElementById("history");
-
-
-    if (!data.transactions.length) {
-
-        history.innerHTML =
-            "<p>Chưa có giao dịch.</p>";
-
-        return;
-    }
-
-
-    history.innerHTML =
-        data.transactions.map(tx => `
-
-            <div style="
-                padding:12px;
-                border-bottom:1px solid #ddd;
-            ">
-
-                <b>
-                    ${tx.type === "ADMIN_CREDIT" ? "+" : "-"}${Number(tx.amount)
-                        .toLocaleString("vi-VN")}
-                    VNĐ
-                </b>
-
-                <br>
-
-                ${tx.content}
-
-                <br>
-
-                <small>
-                    ${new Date(tx.timestamp)
-                        .toLocaleString("vi-VN")}
-                </small>
-
-            </div>
-
-        `).join("");
-}
-
-
-async function logout() {
-    clearAuthToken('bank');
-
-    await apiFetch(
-        "/api/bank/logout",
-        {
-            method: "POST"
-        }
-    );
-
-
-    location.href =
-        "/bank/login";
-}
-
-
-loadAccount();
-
-</script>
-
+  <main class="dashboard"><section class="account">
+    <header class="header"><div><div class="bank-logo">MOCK BANK</div><p class="account-info" id="greeting">Đang tải tài khoản…</p></div><button id="logoutButton" type="button">ĐĂNG XUẤT</button></header>
+    <p class="account-info">Số tài khoản: <b id="accountNumber">—</b></p>
+    <section class="balance"><span>Số dư khả dụng</span><strong id="balance">0 ₫</strong></section>
+    <div class="quick-actions"><button type="button" onclick="location.href='/bank/scanner'">QUÉT QR</button><button type="button" id="refreshHistory">LÀM MỚI LỊCH SỬ</button></div>
+    <section class="panel"><h2>Chuyển tiền</h2><form id="transferForm" class="form">
+      <label for="recipientAccountNumber">Số tài khoản nhận</label><input id="recipientAccountNumber" name="recipientAccountNumber" inputmode="numeric" pattern="[0-9]{6,24}" minlength="6" maxlength="24" required>
+      <label for="transferAmount">Số tiền (VND)</label><input id="transferAmount" name="amount" type="number" min="1" step="1" required>
+      <label for="transferContent">Nội dung chuyển khoản</label><input id="transferContent" name="content" maxlength="200" placeholder="Ví dụ: Chuyển tiền">
+      <button type="submit">XÁC NHẬN CHUYỂN TIỀN</button><p id="transferNotice" class="notice" role="status"></p>
+    </form></section>
+    <section class="panel"><h2>Lịch sử giao dịch</h2><div id="history" class="history"><p>Đang tải lịch sử…</p></div></section>
+  </section></main>
+  <script src="/api-client.js?v=20261103-7"></script><script>
+    const money=value=>`${Number(value).toLocaleString('vi-VN')} ₫`;
+    const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    async function loadAccount(){const response=await apiFetch('/api/bank/account');if(!response.ok){location.href='/bank/login';return}const data=await response.json();document.querySelector('#greeting').textContent=`Xin chào ${data.account.name}`;document.querySelector('#accountNumber').textContent=data.account.accountNumber;document.querySelector('#balance').textContent=money(data.account.balance);await loadTransactions()}
+    async function loadTransactions(){const host=document.querySelector('#history');try{const response=await apiFetch('/api/bank/transactions');if(!response.ok){if(response.status===401)location.href='/bank/login';throw Error('Không tải được lịch sử giao dịch.')}const data=await response.json();const list=data.transactions||[];if(!list.length){host.innerHTML='<p>Chưa có giao dịch.</p>';return}host.innerHTML=list.map(tx=>{const incoming=['TRANSFER_IN','ADMIN_CREDIT'].includes(tx.type)||(tx.orderId&&tx.status==='REFUNDED');const sign=incoming?'+':'−';const title=tx.type==='TRANSFER_IN'?'Tiền chuyển đến':tx.type==='TRANSFER_OUT'?'Chuyển tiền đi':tx.type==='ADMIN_CREDIT'?'Admin cộng số dư':tx.type==='ADMIN_DEBIT'?'Admin trừ số dư':tx.orderId?(tx.status==='REFUNDED'?'Hoàn tiền thanh toán':'Thanh toán đơn hàng'):'Giao dịch';const party=tx.counterpartyName?`${incoming?'Người gửi':'Người nhận'}: ${escapeHtml(tx.counterpartyName)} · ${escapeHtml(tx.counterpartyAccountNumber||'')}`:tx.sender?`Tài khoản gửi: ${escapeHtml(tx.sender)} · ${escapeHtml(tx.senderAccount||'')}`:'';const status=tx.status==='COMPLETED'?'Thành công':tx.status==='PENDING'?'Đang xử lý':tx.status==='REFUNDED'?'Đã hoàn tiền':escapeHtml(tx.status||'Không rõ');const id=tx.transferId||tx.transactionId||tx.orderId||'—';const balance=Number.isSafeInteger(Number(tx.balanceAfter))?`<div>Số dư sau giao dịch: <b>${money(tx.balanceAfter)}</b></div>`:'';return `<article class="transaction"><div class="transaction-head"><b>${title}</b><span class="amount ${incoming?'in':'out'}">${sign}${money(tx.amount)}</span></div><div class="transaction-detail">${party?`<div>${party}</div>`:''}<div>Nội dung: ${escapeHtml(tx.content||'—')}</div>${tx.orderId?`<div>Mã đơn hàng: ${escapeHtml(tx.orderId)}</div>`:''}${balance}</div><div class="transaction-meta">${new Date(tx.timestamp).toLocaleString('vi-VN')} · ${status} · Mã GD: ${escapeHtml(id)}</div></article>`}).join('')}catch(error){host.textContent=error.message}}
+    document.querySelector('#transferForm').addEventListener('submit',async event=>{event.preventDefault();const notice=document.querySelector('#transferNotice'),form=event.currentTarget,button=form.querySelector('button[type="submit"]'),fields=Object.fromEntries(new FormData(form));fields.amount=Number(fields.amount);button.disabled=true;notice.textContent='Đang xử lý chuyển khoản…';try{const response=await apiFetch('/api/bank/transfer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)});const data=await response.json();if(!response.ok)throw Error(data.message||'Chuyển khoản thất bại.');notice.textContent=`Đã chuyển ${money(fields.amount)} đến ${data.recipient.name} (${data.recipient.accountNumber}). Mã GD: ${data.transferId}`;form.reset();await loadAccount()}catch(error){notice.textContent=error.message}finally{button.disabled=false}});
+    document.querySelector('#refreshHistory').addEventListener('click',loadTransactions);
+    document.querySelector('#logoutButton').addEventListener('click',async()=>{clearAuthToken('bank');await apiFetch('/api/bank/logout',{method:'POST'});location.href='/bank/login'});
+    loadAccount();
+  </script>
 </body>
-
 </html>
