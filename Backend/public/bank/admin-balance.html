@@ -11,32 +11,32 @@
     .top{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid #e2e8f0;padding-bottom:20px}
     .bank-logo{font-size:25px;text-align:left}
     .eyebrow{margin:4px 0 0;color:#64748b;font-size:13px}
-    .top a{color:#1d4ed8;font-weight:700;text-decoration:none}
+    .top a{color:#1B397A;font-weight:700;text-decoration:none}
     h1{font-size:25px;margin:24px 0 6px;color:#172033}
     .intro{margin:0 0 22px;color:#64748b}
     .panel{background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:20px;margin:18px 0}
-    .panel h2{font-size:17px;margin:0 0 16px;color:#1e3a8a}
+    .panel h2{font-size:17px;margin:0 0 16px;color:#17336F}
     .form{display:grid;grid-template-columns:2fr 1fr 1fr auto;align-items:end;gap:12px}
     .form label{font-size:13px;color:#475569}
     .form input,.form select{display:block;width:100%;margin-top:7px;padding:12px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;font-size:15px}
-    .form button{width:auto;margin:0;padding:13px 17px;border-radius:9px;background:#2563eb;white-space:nowrap}
-    .form button:hover{background:#1d4ed8}
+    .form button{width:auto;margin:0;padding:13px 17px;border-radius:9px;background:#244A9A;white-space:nowrap}
+    .form button:hover{background:#1B397A}
     .create-form{grid-template-columns:repeat(3,minmax(0,1fr))}
     .create-form button{align-self:end}
     .delete-account{width:auto;margin:0;padding:8px 11px;border-radius:8px;background:#dc2626;font-size:12px}
     .delete-account:hover{background:#b91c1c}
-    .hint,.notice{font-size:13px;color:#64748b;line-height:1.5}.notice{min-height:18px;color:#1d4ed8}
+    .hint,.notice{font-size:13px;color:#64748b;line-height:1.5}.notice{min-height:18px;color:#1B397A}
     .table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:12px}
     .table{width:100%;border-collapse:collapse;background:#fff;min-width:600px}
     .table th,.table td{text-align:left;padding:14px;border-bottom:1px solid #e2e8f0;font-size:13px}
-    .table th{background:#eff6ff;color:#1e3a8a;font-size:11px;letter-spacing:.04em}
+    .table th{background:#FFF7E3;color:#17336F;font-size:11px;letter-spacing:.04em}
     .table tr:last-child td{border-bottom:0}.empty{padding:20px;color:#64748b}
     @media(max-width:760px){.admin-shell{margin:18px auto}.bank-card{padding:18px}.form,.create-form{grid-template-columns:1fr}.top{align-items:flex-start}}
   </style>
 </head>
 <body>
   <main class="admin-shell"><section class="bank-card">
-    <header class="top"><div><div class="bank-logo">MOCK BANK</div><p class="eyebrow">Quản trị viên ngân hàng</p></div><nav><a href="#" id="bank-logout">Đăng xuất</a></nav></header>
+    <header class="top"><div><div class="iuh-brand"><img src="/bank/iuh-logo.png" alt="IUH - Industrial University of Ho Chi Minh City"></div><p class="eyebrow">Quản trị viên ngân hàng</p></div><nav><a href="#" id="bank-logout">Đăng xuất</a></nav></header>
     <h1>Điều chỉnh số dư</h1><p class="intro">Quản lý số dư và tài khoản trong hệ thống ngân hàng giả lập.</p>
     <section class="panel"><h2>Thêm tài khoản</h2><form id="create-form" class="form create-form">
       <label>Họ tên<input name="name" minlength="2" maxlength="100" required></label>
