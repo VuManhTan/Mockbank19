@@ -147,8 +147,11 @@ document
 
 
             saveAuthToken('bank', data.token);
-            const destination = new URLSearchParams(location.search).get("return") || (data.role === "bank-admin" ? "/bank/admin/balance" : "/bank/dashboard");
-            location.href = destination.startsWith("/") && !destination.startsWith("//") ? destination : "/bank/dashboard";
+            const requested = new URLSearchParams(location.search).get("return") || "";
+            const destination = data.role === "bank-admin"
+                ? "/bank/admin/balance"
+                : (requested.startsWith("/bank/") && !requested.startsWith("/bank/admin/") ? requested : "/bank/dashboard");
+            location.href = destination;
 
 
         } catch (err) {

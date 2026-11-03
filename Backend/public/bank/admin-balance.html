@@ -1,10 +1,55 @@
-<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mock Bank · Quản trị số dư</title><link rel="stylesheet" href="/bank/style.css"><style>
-body{background:#f4f6f3;color:#25342b}.admin{max-width:1000px;margin:35px auto;padding:0 22px}.head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.head h1{font:600 30px Georgia,serif;margin:0}.head a{color:#426148;font-size:12px}.panel,.wrap{background:white;border:1px solid #e0e6df;margin-bottom:18px;padding:20px}.panel h2{font:600 19px Georgia,serif;margin:0 0 15px}.form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.form label{font-size:12px;color:#68776b}.form input,.form select{width:100%;padding:10px;margin-top:5px;border:1px solid #dce3da;border-radius:6px}.form button{align-self:end;border:0;border-radius:5px;padding:11px 15px;background:#526d5a;color:white;cursor:pointer}.notice,.hint{font-size:12px;color:#718072;min-height:17px}.table{width:100%;border-collapse:collapse}.table th,.table td{text-align:left;padding:12px;border-bottom:1px solid #edf0eb;font-size:12px}.table th{background:#f8f9f6;color:#718072;font-size:10px}.wrap{overflow:auto}.empty{color:#718072}@media(max-width:700px){.form{grid-template-columns:1fr}.head{align-items:flex-start;gap:12px;flex-direction:column}}
-</style></head><body><main class="admin"><header class="head"><div><p>MOCK BANK · QUẢN TRỊ NGÂN HÀNG</p><h1>Điều chỉnh số dư</h1></div><nav><a href="/bank/dashboard">Tài khoản</a> · <a href="#" id="bank-logout">Đăng xuất</a></nav></header>
-<section class="panel"><h2>Cộng hoặc trừ số dư tài khoản</h2><form id="adjust-form" class="form"><label>Tài khoản<select name="accountId" id="account" required></select></label><label>Thao tác<select name="direction"><option value="add">Cộng số dư</option><option value="subtract">Trừ số dư</option></select></label><label>Số tiền (VND)<input name="amount" type="number" min="1" step="1" required></label><button type="submit">Xác nhận điều chỉnh</button></form><p class="hint">Mỗi điều chỉnh được lưu vào lịch sử giao dịch. Không thể trừ vượt số dư hiện có.</p><p class="notice" id="notice" role="status"></p></section>
-<section class="wrap"><div id="accounts" class="empty">Đang tải tài khoản…</div></section></main><script src="/api-client.js?v=20261103-2"></script><script>
-const host=document.querySelector('#accounts'),select=document.querySelector('#account'),form=document.querySelector('#adjust-form'),notice=document.querySelector('#notice');const money=n=>`${Number(n).toLocaleString('vi-VN')} ₫`;const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function request(url,options={}){const r=await apiFetch(url,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});if(r.status===401){location.href='/bank/login?return=%2Fbank%2Fadmin%2Fbalance';throw Error('Vui lòng đăng nhập admin ngân hàng.')}const d=await r.json();if(!r.ok)throw Error(d.message||'Yêu cầu thất bại');return d}
-async function load(){try{const accounts=(await request('/api/bank/admin/accounts')).accounts;select.innerHTML=accounts.map(a=>`<option value="${esc(a.id)}">${esc(a.name)} · ${esc(a.accountNumber)}</option>`).join('');host.className='';host.innerHTML=accounts.length?`<table class="table"><thead><tr><th>CHỦ TÀI KHOẢN</th><th>SỐ TÀI KHOẢN</th><th>TÊN ĐĂNG NHẬP</th><th>SỐ DƯ</th></tr></thead><tbody>${accounts.map(a=>`<tr><td>${esc(a.name)}</td><td>${esc(a.accountNumber)}</td><td>${esc(a.username)}</td><td><strong>${money(a.balance)}</strong></td></tr>`).join('')}</tbody></table>`:'Không có tài khoản.'}catch(e){host.textContent=e.message}}
-form.addEventListener('submit',async e=>{e.preventDefault();if(!confirm('Xác nhận điều chỉnh số dư tài khoản này?'))return;const fields=Object.fromEntries(new FormData(form));fields.amount=Number(fields.amount);try{await request(`/api/bank/admin/accounts/${encodeURIComponent(fields.accountId)}/balance`,{method:'POST',body:JSON.stringify({direction:fields.direction,amount:fields.amount})});notice.textContent='Đã điều chỉnh số dư và ghi lịch sử giao dịch.';form.elements.amount.value='';await load()}catch(error){notice.textContent=error.message}});document.querySelector('#bank-logout').addEventListener('click',async e=>{e.preventDefault();await apiFetch('/api/bank/logout',{method:'POST'});clearAuthToken('bank');location.href='/bank/login'});load();
-</script></body></html>
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mock Bank | Quản trị ngân hàng</title>
+  <link rel="stylesheet" href="/bank/style.css">
+  <style>
+    .admin-shell{max-width:1050px;margin:36px auto;padding:0 20px}
+    .bank-card{background:#fff;border-radius:20px;padding:28px;box-shadow:0 20px 50px rgba(0,0,0,.2)}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid #e2e8f0;padding-bottom:20px}
+    .bank-logo{font-size:25px;text-align:left}
+    .eyebrow{margin:4px 0 0;color:#64748b;font-size:13px}
+    .top a{color:#1d4ed8;font-weight:700;text-decoration:none}
+    h1{font-size:25px;margin:24px 0 6px;color:#172033}
+    .intro{margin:0 0 22px;color:#64748b}
+    .panel{background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:20px;margin:18px 0}
+    .panel h2{font-size:17px;margin:0 0 16px;color:#1e3a8a}
+    .form{display:grid;grid-template-columns:2fr 1fr 1fr auto;align-items:end;gap:12px}
+    .form label{font-size:13px;color:#475569}
+    .form input,.form select{display:block;width:100%;margin-top:7px;padding:12px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;font-size:15px}
+    .form button{width:auto;margin:0;padding:13px 17px;border-radius:9px;background:#2563eb;white-space:nowrap}
+    .form button:hover{background:#1d4ed8}
+    .hint,.notice{font-size:13px;color:#64748b;line-height:1.5}.notice{min-height:18px;color:#1d4ed8}
+    .table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:12px}
+    .table{width:100%;border-collapse:collapse;background:#fff;min-width:600px}
+    .table th,.table td{text-align:left;padding:14px;border-bottom:1px solid #e2e8f0;font-size:13px}
+    .table th{background:#eff6ff;color:#1e3a8a;font-size:11px;letter-spacing:.04em}
+    .table tr:last-child td{border-bottom:0}.empty{padding:20px;color:#64748b}
+    @media(max-width:760px){.admin-shell{margin:18px auto}.bank-card{padding:18px}.form{grid-template-columns:1fr}.top{align-items:flex-start}}
+  </style>
+</head>
+<body>
+  <main class="admin-shell"><section class="bank-card">
+    <header class="top"><div><div class="bank-logo">MOCK BANK</div><p class="eyebrow">Quản trị viên ngân hàng</p></div><nav><a href="#" id="bank-logout">Đăng xuất</a></nav></header>
+    <h1>Điều chỉnh số dư</h1><p class="intro">Quản lý số dư và tài khoản trong hệ thống ngân hàng giả lập.</p>
+    <section class="panel"><h2>Cộng hoặc trừ số dư</h2><form id="adjust-form" class="form">
+      <label>Tài khoản<select name="accountId" id="account" required></select></label>
+      <label>Thao tác<select name="direction"><option value="add">Cộng tiền</option><option value="subtract">Trừ tiền</option></select></label>
+      <label>Số tiền (VND)<input name="amount" type="number" min="1" step="1" required></label>
+      <button type="submit">Xác nhận</button>
+    </form><p class="hint">Điều chỉnh được lưu vào lịch sử giao dịch. Không thể trừ vượt số dư hiện có.</p><p class="notice" id="notice" role="status"></p></section>
+    <section class="table-wrap"><div id="accounts" class="empty">Đang tải tài khoản…</div></section>
+  </section></main>
+  <script src="/api-client.js?v=20261103-3"></script><script>
+    const host=document.querySelector('#accounts'),select=document.querySelector('#account'),form=document.querySelector('#adjust-form'),notice=document.querySelector('#notice');
+    const money=n=>`${Number(n).toLocaleString('vi-VN')} ₫`;
+    const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    async function request(url,options={}){const r=await apiFetch(url,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});if(r.status===401){location.href='/bank/login?return=%2Fbank%2Fadmin%2Fbalance';throw Error('Vui lòng đăng nhập admin ngân hàng.')}const d=await r.json();if(!r.ok)throw Error(d.message||'Yêu cầu thất bại');return d}
+    async function load(){try{const accounts=(await request('/api/bank/admin/accounts')).accounts;select.innerHTML=accounts.map(a=>`<option value="${esc(a.id)}">${esc(a.name)} · ${esc(a.accountNumber)}</option>`).join('');host.className='';host.innerHTML=accounts.length?`<table class="table"><thead><tr><th>CHỦ TÀI KHOẢN</th><th>SỐ TÀI KHOẢN</th><th>TÊN ĐĂNG NHẬP</th><th>SỐ DƯ</th></tr></thead><tbody>${accounts.map(a=>`<tr><td>${esc(a.name)}</td><td>${esc(a.accountNumber)}</td><td>${esc(a.username)}</td><td><strong>${money(a.balance)}</strong></td></tr>`).join('')}</tbody></table>`:'<p class="empty">Chưa có tài khoản.</p>'}catch(e){host.textContent=e.message}}
+    form.addEventListener('submit',async e=>{e.preventDefault();if(!confirm('Xác nhận điều chỉnh số dư tài khoản này?'))return;const fields=Object.fromEntries(new FormData(form));fields.amount=Number(fields.amount);try{await request(`/api/bank/admin/accounts/${encodeURIComponent(fields.accountId)}/balance`,{method:'POST',body:JSON.stringify({direction:fields.direction,amount:fields.amount})});notice.textContent='Đã cập nhật số dư và lịch sử giao dịch.';form.elements.amount.value='';await load()}catch(error){notice.textContent=error.message}});
+    document.querySelector('#bank-logout').addEventListener('click',async e=>{e.preventDefault();await apiFetch('/api/bank/logout',{method:'POST'});clearAuthToken('bank');location.href='/bank/login'});load();
+  </script>
+</body>
+</html>
