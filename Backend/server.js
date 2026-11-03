@@ -49,6 +49,8 @@ const {
     loginBankAdmin,
     getSafeAccount,
     getAccountByUsername,
+    updateBankAccountProfile,
+    changeBankAccountPassword,
     debitAccount,
     refundAccount,
     addTransaction,
@@ -517,6 +519,38 @@ app.get(
 
     }
 );
+
+app.patch("/api/bank/account/profile", requireBankApi, async (req, res) => {
+    try {
+        const account = await updateBankAccountProfile(req.auth.data, req.body || {});
+        res.json({ success: true, account, token: issueToken("bank", account.username) });
+    } catch (error) {
+        const conflict = /đã được sử dụng/.test(error.message);
+        const notFound = /Không tìm thấy tài khoản đang hoạt động/.test(error.message);
+        const validation = /Họ tên|Tên đăng nhập phải/.test(error.message);
+        res.status(conflict ? 409 : notFound ? 404 : validation ? 400 : 503).json({
+            success: false,
+            message: conflict || notFound || validation ? error.message : "Không thể cập nhật thông tin tài khoản."
+        });
+    }
+});
+
+app.post("/api/bank/account/password", requireBankApi, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body || {};
+        const result = await changeBankAccountPassword(req.auth.data, currentPassword, newPassword);
+        res.json({ success: true, token: issueToken("bank", result.username) });
+    } catch (error) {
+        const notFound = /Không tìm thấy tài khoản đang hoạt động/.test(error.message);
+        const invalidCurrent = /Mật khẩu hiện tại không đúng/.test(error.message);
+        const validation = /Mật khẩu mới/.test(error.message);
+        const conflict = /Thông tin đăng nhập vừa thay đổi/.test(error.message);
+        res.status(notFound ? 404 : conflict ? 409 : invalidCurrent ? 401 : validation ? 400 : 503).json({
+            success: false,
+            message: notFound || conflict || invalidCurrent || validation ? error.message : "Không thể đổi mật khẩu."
+        });
+    }
+});
 
 
 // ==========================================

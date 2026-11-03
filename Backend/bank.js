@@ -1,4 +1,5 @@
 const { db } = require("./firebase");
+const { FieldValue } = require("firebase-admin/firestore");
 const crypto = require("crypto");
 const { promisify } = require("util");
 const scrypt = promisify(crypto.scrypt);
@@ -40,16 +41,21 @@ async function login(username, password) {
     if (typeof password !== "string" || password.length > 128) return null;
     const account = await getAccountByUsername(username);
     if (!account || account.active === false) return null;
-    if (account.passwordHash && account.passwordSalt) {
-        const actual = Buffer.from(await hashPassword(password, account.passwordSalt), "hex");
-        const expected = Buffer.from(account.passwordHash, "hex");
-        return actual.length === expected.length && crypto.timingSafeEqual(actual, expected) ? account : null;
-    }
-    return account.password === String(password) ? account : null;
+    return await verifyAccountPassword(account, password) ? account : null;
 }
 
 async function hashPassword(password, salt) {
     return (await scrypt(password, salt, 64)).toString("hex");
+}
+
+async function verifyAccountPassword(account, password) {
+    if (typeof password !== "string" || password.length > 128) return false;
+    if (account.passwordHash && account.passwordSalt) {
+        const actual = Buffer.from(await hashPassword(password, account.passwordSalt), "hex");
+        const expected = Buffer.from(account.passwordHash, "hex");
+        return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+    }
+    return account.password === password;
 }
 
 function loginBankAdmin(username, password) {
@@ -75,6 +81,50 @@ function getSafeAccount(account) {
         accountNumber: account.accountNumber,
         balance: account.balance
     };
+}
+
+async function updateBankAccountProfile(currentUsername, input) {
+    const account = await getAccountByUsername(currentUsername);
+    if (!account || account.active === false) throw new Error("Không tìm thấy tài khoản đang hoạt động");
+    const name = String(input.name || "").trim();
+    const username = String(input.username || "").trim();
+    if (name.length < 2 || name.length > 100) throw new Error("Họ tên cần dài từ 2 đến 100 ký tự");
+    if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) throw new Error("Tên đăng nhập phải có 3-32 ký tự gồm chữ, số, dấu chấm, gạch dưới hoặc gạch ngang");
+    const ref = accounts.doc(account.id);
+    await db.runTransaction(async transaction => {
+        const snapshot = await transaction.get(ref);
+        if (!snapshot.exists || snapshot.get("active") === false) throw new Error("Không tìm thấy tài khoản đang hoạt động");
+        if (username !== snapshot.get("username")) {
+            const matches = await transaction.get(accounts.where("username", "==", username).limit(1));
+            if (!matches.empty && matches.docs[0].id !== ref.id) throw new Error("Tên đăng nhập đã được sử dụng");
+        }
+        transaction.update(ref, { name, username, updatedAt: new Date().toISOString() });
+    });
+    return getSafeAccount({ ...account, name, username });
+}
+
+async function changeBankAccountPassword(username, currentPassword, newPassword) {
+    const account = await getAccountByUsername(username);
+    if (!account || account.active === false) throw new Error("Không tìm thấy tài khoản đang hoạt động");
+    if (!(await verifyAccountPassword(account, currentPassword))) throw new Error("Mật khẩu hiện tại không đúng");
+    if (typeof newPassword !== "string" || newPassword.length < 8 || newPassword.length > 128) throw new Error("Mật khẩu mới phải có từ 8 đến 128 ký tự");
+    const passwordSalt = crypto.randomBytes(16).toString("hex");
+    const passwordHash = await hashPassword(newPassword, passwordSalt);
+    const ref = accounts.doc(account.id);
+    await db.runTransaction(async transaction => {
+        const snapshot = await transaction.get(ref);
+        if (!snapshot.exists || snapshot.get("active") === false) throw new Error("Không tìm thấy tài khoản đang hoạt động");
+        if (snapshot.get("passwordHash") !== account.passwordHash || snapshot.get("passwordSalt") !== account.passwordSalt || snapshot.get("password") !== account.password) {
+            throw new Error("Thông tin đăng nhập vừa thay đổi. Hãy đăng nhập lại rồi thử lại.");
+        }
+        transaction.update(ref, {
+            passwordSalt,
+            passwordHash,
+            password: FieldValue.delete(),
+            passwordChangedAt: new Date().toISOString()
+        });
+    });
+    return { username: account.username };
 }
 
 async function debitAccount(username, amount) {
@@ -320,6 +370,8 @@ module.exports = {
     login,
     loginBankAdmin,
     getSafeAccount,
+    updateBankAccountProfile,
+    changeBankAccountPassword,
     debitAccount,
     refundAccount,
     addTransaction,
