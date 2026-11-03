@@ -1,5 +1,7 @@
 const { db } = require("./firebase");
 const crypto = require("crypto");
+const { promisify } = require("util");
+const scrypt = promisify(crypto.scrypt);
 
 const accounts = db.collection("bankAccounts");
 const transactions = db.collection("bankTransactions");
@@ -35,8 +37,19 @@ async function getAccountByUsername(username) {
 }
 
 async function login(username, password) {
+    if (typeof password !== "string" || password.length > 128) return null;
     const account = await getAccountByUsername(username);
-    return account && account.active !== false && account.password === String(password) ? account : null;
+    if (!account || account.active === false) return null;
+    if (account.passwordHash && account.passwordSalt) {
+        const actual = Buffer.from(await hashPassword(password, account.passwordSalt), "hex");
+        const expected = Buffer.from(account.passwordHash, "hex");
+        return actual.length === expected.length && crypto.timingSafeEqual(actual, expected) ? account : null;
+    }
+    return account.password === String(password) ? account : null;
+}
+
+async function hashPassword(password, salt) {
+    return (await scrypt(password, salt, 64)).toString("hex");
 }
 
 function loginBankAdmin(username, password) {
@@ -139,6 +152,8 @@ async function createBankAccount(input, adminUsername) {
     if (!Number.isSafeInteger(balance) || balance < 0) throw new Error("Số dư ban đầu phải là số nguyên không âm");
 
     await ensureSeedAccounts();
+    const passwordSalt = crypto.randomBytes(16).toString("hex");
+    const passwordHash = await hashPassword(password, passwordSalt);
     const accountRef = accounts.doc(`BANK-${crypto.randomUUID()}`);
     const auditRef = adminAudit.doc();
     const timestamp = new Date().toISOString();
@@ -147,7 +162,7 @@ async function createBankAccount(input, adminUsername) {
         const numberMatches = await transaction.get(accounts.where("accountNumber", "==", accountNumber).limit(1));
         if (!usernameMatches.empty) throw new Error("Tên đăng nhập đã được sử dụng");
         if (!numberMatches.empty) throw new Error("Số tài khoản đã được sử dụng");
-        transaction.create(accountRef, { name, username, password, accountNumber, balance, active: true, createdAt: timestamp, createdBy: adminUsername });
+        transaction.create(accountRef, { name, username, passwordSalt, passwordHash, accountNumber, balance, active: true, createdAt: timestamp, createdBy: adminUsername });
         transaction.create(auditRef, {
             transactionId: auditRef.id,
             accountId: accountRef.id,
@@ -160,6 +175,22 @@ async function createBankAccount(input, adminUsername) {
         });
     });
     return getSafeAccount({ id: accountRef.id, name, username, accountNumber, balance });
+}
+
+async function registerBankAccount(input) {
+    const name = String(input.name || "").trim();
+    const username = String(input.username || "").trim();
+    const password = input.password;
+    for (let attempt = 0; attempt < 5; attempt++) {
+        const accountNumber = String(crypto.randomInt(10000000, 100000000));
+        try {
+            return await createBankAccount({ name, username, password, accountNumber, balance: 0 }, "self-registration");
+        } catch (error) {
+            if (/Tên đăng nhập đã được sử dụng/.test(error.message)) throw error;
+            if (!/Số tài khoản đã được sử dụng/.test(error.message) || attempt === 4) throw error;
+        }
+    }
+    throw new Error("Không thể cấp số tài khoản lúc này");
 }
 
 async function deactivateBankAccount(accountId, adminUsername) {
@@ -225,6 +256,7 @@ module.exports = {
     getTransactions,
     getAllSafeAccounts,
     createBankAccount,
+    registerBankAccount,
     deactivateBankAccount,
     adjustAccountBalance
 };

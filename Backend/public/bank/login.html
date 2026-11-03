@@ -1,169 +1,45 @@
-<!DOCTYPE html>
-
+<!doctype html>
 <html lang="vi">
-
 <head>
-
-    <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>Mock Bank - Đăng nhập</title>
-
-    <link
-        rel="stylesheet"
-        href="/bank/style.css"
-    >
-
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mock Bank - Đăng nhập</title>
+  <link rel="stylesheet" href="/bank/style.css">
+  <style>
+    .form-toggle{margin:18px 0 0;text-align:center;font-size:14px;color:#64748b}
+    .form-toggle a{color:#2563eb;font-weight:700;text-decoration:none}
+    .form-toggle a:hover{text-decoration:underline}
+    .form-error{min-height:20px}
+    .form-note{font-size:13px;line-height:1.5;color:#64748b}
+  </style>
 </head>
-
-
 <body>
-
-<div class="bank-container">
-
-    <div class="bank-card">
-
-        <div class="bank-logo">
-
-            MOCK BANK
-
-        </div>
-
-        <p class="subtitle">
-
-            Ngân hàng giả lập
-
-        </p>
-
-
-        <form id="loginForm">
-
-            <label>
-                Tên đăng nhập
-            </label>
-
-            <input
-                id="username"
-                type="text"
-                placeholder="Nhập tên đăng nhập"
-                required
-            >
-
-
-            <label>
-                Mật khẩu
-            </label>
-
-            <input
-                id="password"
-                type="password"
-                placeholder="Nhập mật khẩu"
-                required
-            >
-
-
-            <button type="submit">
-
-                ĐĂNG NHẬP
-
-            </button>
-
-        </form>
-
-
-        <div
-            id="error"
-            class="error"
-        ></div>
-</div>
-
-</div>
-
-
-<script src="/api-client.js?v=20261017-3"></script><script>
-
-document
-    .getElementById("loginForm")
-    .addEventListener("submit", async function(event) {
-
-        event.preventDefault();
-
-
-        const username =
-            document
-                .getElementById("username")
-                .value;
-
-
-        const password =
-            document
-                .getElementById("password")
-                .value;
-
-
-        const error =
-            document.getElementById("error");
-
-
-        error.textContent = "";
-
-
-        try {
-
-            const response =
-                await apiFetch("/api/bank/login", {
-
-                    method: "POST",
-
-                    headers: {
-
-                        "Content-Type":
-                            "application/json"
-
-                    },
-
-                    body: JSON.stringify({
-                        username,
-                        password
-                    })
-
-                });
-
-
-            const data =
-                await response.json();
-
-
-            if (!response.ok) {
-
-                throw new Error(
-                    data.message
-                );
-            }
-
-
-            saveAuthToken('bank', data.token);
-            const requested = new URLSearchParams(location.search).get("return") || "";
-            const destination = data.role === "bank-admin"
-                ? "/bank/admin/balance"
-                : (requested.startsWith("/bank/") && !requested.startsWith("/bank/admin/") ? requested : "/bank/dashboard");
-            location.href = destination;
-
-
-        } catch (err) {
-
-            error.textContent =
-                err.message;
-        }
-
-    });
-
-</script>
-
+  <main class="bank-container"><section class="bank-card">
+    <div class="bank-logo">MOCK BANK</div><p class="subtitle">Ngân hàng giả lập</p>
+    <form id="loginForm">
+      <label for="username">Tên đăng nhập</label><input id="username" name="username" type="text" autocomplete="username" required>
+      <label for="password">Mật khẩu</label><input id="password" name="password" type="password" autocomplete="current-password" required>
+      <button type="submit">ĐĂNG NHẬP</button>
+      <p class="form-toggle">Chưa có tài khoản? <a href="#register" id="showRegister">Tạo tài khoản</a></p>
+    </form>
+    <form id="registerForm" hidden>
+      <label for="registerName">Họ và tên</label><input id="registerName" name="name" minlength="2" maxlength="100" autocomplete="name" required>
+      <label for="registerUsername">Tên đăng nhập</label><input id="registerUsername" name="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9_.-]+" autocomplete="username" required>
+      <label for="registerPassword">Mật khẩu</label><input id="registerPassword" name="password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required>
+      <label for="confirmPassword">Nhập lại mật khẩu</label><input id="confirmPassword" name="confirmPassword" type="password" minlength="6" maxlength="128" autocomplete="new-password" required>
+      <p class="form-note">Tài khoản mới có số dư ban đầu 0 VNĐ. Hệ thống sẽ tự cấp số tài khoản.</p>
+      <button type="submit">TẠO TÀI KHOẢN</button>
+      <p class="form-toggle">Đã có tài khoản? <a href="#login" id="showLogin">Đăng nhập</a></p>
+    </form>
+    <div id="error" class="error form-error" role="alert"></div>
+  </section></main>
+  <script src="/api-client.js?v=20261103-4"></script><script>
+    const loginForm=document.querySelector('#loginForm'),registerForm=document.querySelector('#registerForm'),errorBox=document.querySelector('#error');
+    function bankDestination(data){const requested=new URLSearchParams(location.search).get('return')||'';return data.role==='bank-admin'?'/bank/admin/balance':(requested.startsWith('/bank/')&&!requested.startsWith('/bank/admin/')?requested:'/bank/dashboard')}
+    document.querySelector('#showRegister').addEventListener('click',e=>{e.preventDefault();errorBox.textContent='';loginForm.hidden=true;registerForm.hidden=false});
+    document.querySelector('#showLogin').addEventListener('click',e=>{e.preventDefault();errorBox.textContent='';registerForm.hidden=true;loginForm.hidden=false});
+    loginForm.addEventListener('submit',async e=>{e.preventDefault();errorBox.textContent='';try{const r=await apiFetch('/api/bank/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(loginForm)))});const data=await r.json();if(!r.ok)throw Error(data.message||'Đăng nhập thất bại');saveAuthToken('bank',data.token);location.href=bankDestination(data)}catch(error){errorBox.textContent=error.message}});
+    registerForm.addEventListener('submit',async e=>{e.preventDefault();errorBox.textContent='';const fields=Object.fromEntries(new FormData(registerForm));if(fields.password!==fields.confirmPassword){errorBox.textContent='Mật khẩu nhập lại chưa khớp.';return}delete fields.confirmPassword;try{const r=await apiFetch('/api/bank/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)});const data=await r.json();if(!r.ok)throw Error(data.message||'Không thể tạo tài khoản');saveAuthToken('bank',data.token);location.href='/bank/dashboard'}catch(error){errorBox.textContent=error.message}});
+  </script>
 </body>
-
 </html>

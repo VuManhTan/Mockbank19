@@ -56,6 +56,7 @@ const {
     getTransactions,
     getAllSafeAccounts,
     createBankAccount,
+    registerBankAccount,
     deactivateBankAccount,
     adjustAccountBalance
 } = require("./bank");
@@ -452,6 +453,20 @@ app.post(
 
     }
 );
+
+app.post("/api/bank/register", async (req, res) => {
+    try {
+        const account = await registerBankAccount(req.body || {});
+        res.status(201).json({ success: true, account, token: issueToken("bank", account.username) });
+    } catch (error) {
+        const conflict = /đã được sử dụng/.test(error.message);
+        const validation = /Tên cần|Tên đăng nhập|Mật khẩu/.test(error.message);
+        res.status(conflict ? 409 : validation ? 400 : 503).json({
+            success: false,
+            message: conflict || validation ? error.message : "Không thể tạo tài khoản lúc này."
+        });
+    }
+});
 
 
 // ==========================================
