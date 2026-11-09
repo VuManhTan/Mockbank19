@@ -56,6 +56,7 @@ const {
     addTransaction,
     setTransactionStatus,
     getTransactions,
+    getAllTransactions,
     transferFunds,
     getAllSafeAccounts,
     createBankAccount,
@@ -274,6 +275,14 @@ app.get("/api/bank/admin/accounts", requireBankAdminApi, async (_req, res) => {
     } catch (error) {
         console.error("Không tải được tài khoản ngân hàng:", error);
         res.status(503).json({ success: false, message: "Không tải được danh sách tài khoản." });
+    }
+});
+app.get("/api/bank/admin/transactions", requireBankAdminApi, async (_req, res) => {
+    try {
+        res.json({ success: true, transactions: await getAllTransactions() });
+    } catch (error) {
+        console.error("Khong tai duoc lich su giao dich ngan hang:", error);
+        res.status(503).json({ success: false, message: "Khong tai duoc lich su giao dich." });
     }
 });
 app.post("/api/bank/admin/accounts", requireBankAdminApi, async (req, res) => {

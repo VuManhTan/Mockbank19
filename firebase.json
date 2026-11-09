@@ -1,4 +1,7 @@
 {
+  "firestore": {
+    "indexes": "firestore.indexes.json"
+  },
   "hosting": {
     "public": "Backend/public",
     "headers": [
@@ -32,6 +35,7 @@
       { "source": "/bank/login", "destination": "/bank/login.html" },
       { "source": "/bank/user/login", "destination": "/bank/login.html" },
       { "source": "/bank/admin/login", "destination": "/bank/admin-login.html" },
+      { "source": "/bank/admin/balance", "destination": "/bank/admin-balance.html" },
       { "source": "/bank/dashboard", "destination": "/bank/dashboard.html" },
       { "source": "/bank/scanner", "destination": "/bank/scanner.html" },
       { "source": "/bank/payment", "destination": "/bank/payment.html" }

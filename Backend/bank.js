@@ -180,6 +180,30 @@ async function getTransactions(username) {
     return snapshot.docs.map(document => document.data());
 }
 
+async function getAllTransactions() {
+    const [transactionSnapshot, accountSnapshot] = await Promise.all([
+        transactions.orderBy("timestamp", "desc").limit(500).get(),
+        accounts.get()
+    ]);
+    const accountById = new Map(accountSnapshot.docs.map(document => {
+        const account = document.data();
+        return [document.id, {
+            name: account.name || "",
+            accountNumber: account.accountNumber || ""
+        }];
+    }));
+    return transactionSnapshot.docs.map(document => {
+        const record = document.data();
+        const account = accountById.get(record.accountId) || {};
+        return {
+            ...record,
+            transactionId: record.transactionId || document.id,
+            accountName: account.name || record.senderName || record.sender || "",
+            accountNumber: account.accountNumber || record.senderAccountNumber || record.senderAccount || ""
+        };
+    });
+}
+
 async function transferFunds(senderUsername, recipientAccountNumber, amount, content = "") {
     const safeAmount = Number(amount);
     const accountNumber = String(recipientAccountNumber || "").trim();
@@ -377,6 +401,7 @@ module.exports = {
     addTransaction,
     setTransactionStatus,
     getTransactions,
+    getAllTransactions,
     transferFunds,
     getAllSafeAccounts,
     createBankAccount,

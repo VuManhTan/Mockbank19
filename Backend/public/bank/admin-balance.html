@@ -31,6 +31,7 @@
     .table th,.table td{text-align:left;padding:14px;border-bottom:1px solid #e2e8f0;font-size:13px}
     .table th{background:#FFF7E3;color:#17336F;font-size:11px;letter-spacing:.04em}
     .table tr:last-child td{border-bottom:0}.empty{padding:20px;color:#64748b}
+    .history-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.history-heading h2{margin:0}.history-heading button{width:auto;margin:0;padding:10px 14px;border-radius:9px;background:#244A9A}.history-table{min-width:900px}
     @media(max-width:760px){.admin-shell{margin:18px auto}.bank-card{padding:18px}.form,.create-form{grid-template-columns:1fr}.top{align-items:flex-start}}
   </style>
 </head>
@@ -53,6 +54,7 @@
       <button type="submit">Xác nhận</button>
     </form><p class="hint">Điều chỉnh được lưu vào lịch sử giao dịch. Không thể trừ vượt số dư hiện có.</p><p class="notice" id="notice" role="status"></p></section>
     <section class="table-wrap"><div id="accounts" class="empty">Đang tải tài khoản…</div></section>
+    <section class="panel"><div class="history-heading"><h2>Lịch sử giao dịch toàn hệ thống</h2><button id="refresh-transactions" type="button">Tải lại</button></div><p class="hint">Các giao dịch được lưu trong Firebase, từ mới đến cũ (hiện tối đa 500 giao dịch gần nhất).</p><div id="all-transactions" class="empty">Đang tải lịch sử…</div></section>
   </section></main>
   <script src="/api-client.js?v=20261103-3"></script><script>
     const host=document.querySelector('#accounts'),select=document.querySelector('#account'),form=document.querySelector('#adjust-form'),notice=document.querySelector('#notice'),createForm=document.querySelector('#create-form'),createNotice=document.querySelector('#create-notice');
@@ -64,6 +66,13 @@
     host.addEventListener('click',async e=>{const button=e.target.closest('[data-delete-account]');if(!button)return;if(!confirm('Xóa tài khoản này? Tài khoản sẽ không thể đăng nhập hoặc thực hiện giao dịch mới; lịch sử giao dịch vẫn được giữ.'))return;try{await request(`/api/bank/admin/accounts/${encodeURIComponent(button.dataset.deleteAccount)}`,{method:'DELETE'});notice.textContent='Đã xóa (vô hiệu hóa) tài khoản.';await load()}catch(error){notice.textContent=error.message}});
     form.addEventListener('submit',async e=>{e.preventDefault();if(!confirm('Xác nhận điều chỉnh số dư tài khoản này?'))return;const fields=Object.fromEntries(new FormData(form));fields.amount=Number(fields.amount);try{await request(`/api/bank/admin/accounts/${encodeURIComponent(fields.accountId)}/balance`,{method:'POST',body:JSON.stringify({direction:fields.direction,amount:fields.amount})});notice.textContent='Đã cập nhật số dư và lịch sử giao dịch.';form.elements.amount.value='';await load()}catch(error){notice.textContent=error.message}});
     document.querySelector('#bank-logout').addEventListener('click',async e=>{e.preventDefault();await apiFetch('/api/bank/logout',{method:'POST'});clearAuthToken('bank');location.href='/bank/admin/login'});load();
+  </script>
+  <script>
+    const allTransactionsHost=document.querySelector('#all-transactions');
+    const transactionTypes={TRANSFER_IN:'Tiền chuyển đến',TRANSFER_OUT:'Chuyển tiền đi',ADMIN_CREDIT:'Admin cộng số dư',ADMIN_DEBIT:'Admin trừ số dư'};
+    async function loadAllTransactions(){allTransactionsHost.textContent='Đang tải lịch sử…';try{const data=await request('/api/bank/admin/transactions');const items=data.transactions||[];if(!items.length){allTransactionsHost.textContent='Chưa có giao dịch được lưu.';return}allTransactionsHost.className='table-wrap';allTransactionsHost.innerHTML=`<table class="table history-table"><thead><tr><th>TÀI KHOẢN</th><th>SỐ TÀI KHOẢN</th><th>LOẠI GIAO DỊCH</th><th>SỐ TIỀN</th><th>NỘI DUNG</th><th>TRẠNG THÁI</th><th>THỜI GIAN</th></tr></thead><tbody>${items.map(tx=>{const type=transactionTypes[tx.type]||(tx.orderId?'Thanh toán đơn hàng':'Giao dịch');const time=tx.timestamp?new Date(tx.timestamp).toLocaleString('vi-VN'):'—';return `<tr><td>${esc(tx.accountName||'—')}</td><td>${esc(tx.accountNumber||'—')}</td><td>${type}</td><td><strong>${money(tx.amount)}</strong></td><td>${esc(tx.content||tx.orderId||'—')}</td><td>${esc(tx.status||'—')}</td><td>${esc(time)}</td></tr>`}).join('')}</tbody></table>`}catch(error){allTransactionsHost.className='empty';allTransactionsHost.textContent=error.message}}
+    document.querySelector('#refresh-transactions').addEventListener('click',loadAllTransactions);
+    loadAllTransactions();
   </script>
 </body>
 </html>
