@@ -170,3 +170,24 @@ button:not(.icon-button) { border-bottom: 3px solid var(--iuh-gold); }
 button:hover { background: var(--iuh-blue-dark); }
 .bank-card, .account, .payment, .scanner { background-color: #fff; }
 .balance { border: 1px solid #F3D47A; }
+
+/* Shared IUH white, blue, and gold finish for linked bank/admin pages. */
+body{background:#f4f7fd;color:#172b55}
+.bank-card,.account,.payment,.scanner{border:1px solid #dce5f2;box-shadow:0 18px 45px rgba(23,51,111,.12)}
+button:not(.icon-button){background:#244a9a;color:#fff;border-bottom:3px solid #ffb928}
+button:not(.icon-button):hover{background:#17336f}
+input:focus,select:focus{outline:3px solid rgba(255,185,40,.38);border-color:#244a9a}
+.iuh-brand img{max-height:64px;object-fit:contain}
+.admin-logo-link{display:inline-block}
+.admin-logo{display:block;width:min(220px,58vw);max-height:62px;height:auto;object-fit:contain;margin:0 0 16px}
+.admin,.admin-shell{background:#fff}
+.admin-head h1,.head h1{color:#17336f}
+.admin-head p,.head p{color:#64748b!important}
+.admin-head a,.head a{color:#244a9a!important}
+.orders th,.table th{background:#edf3ff!important;color:#17336f!important}
+.status{background:#fff2c9!important;color:#17336f!important}
+.status.paid{background:#e8effb!important;color:#244a9a!important}
+.actions button,.row-actions button{background:#244a9a!important;color:#fff!important;border-bottom:3px solid #ffb928!important}
+.actions button:hover,.row-actions button:hover{background:#17336f!important}
+.actions .cancel,.row-actions .delete{background:#fff2c9!important;color:#17336f!important}
+body{background:#f4f7fd!important;color:#172b55!important}
