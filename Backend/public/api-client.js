@@ -55,4 +55,31 @@
 
   window.saveAuthToken = (role, token) => sessionStorage.setItem(`mockbank-${role}-token`, token);
   window.clearAuthToken = role => sessionStorage.removeItem(`mockbank-${role}-token`);
+
+  window.parseThousandsInput = value => {
+    const digits = String(value ?? '').replace(/\D/g, '');
+    return digits ? Number(digits) : NaN;
+  };
+
+  window.formatThousandsInput = input => {
+    const oldValue = input.value;
+    const cursor = input.selectionStart ?? oldValue.length;
+    const digitsBeforeCursor = oldValue.slice(0, cursor).replace(/\D/g, '').length;
+    const digits = oldValue.replace(/\D/g, '');
+    const formatted = digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    input.value = formatted;
+    let nextCursor = 0;
+    let digitsPassed = 0;
+    while (nextCursor < formatted.length && digitsPassed < digitsBeforeCursor) {
+      if (/\d/.test(formatted[nextCursor])) digitsPassed += 1;
+      nextCursor += 1;
+    }
+    input.setSelectionRange(nextCursor, nextCursor);
+  };
+
+  document.querySelectorAll('input[data-thousands]').forEach(input => {
+    input.addEventListener('input', () => window.formatThousandsInput(input));
+    input.addEventListener('blur', () => window.formatThousandsInput(input));
+    if (input.value) window.formatThousandsInput(input);
+  });
 })();

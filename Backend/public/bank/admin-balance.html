@@ -44,27 +44,27 @@
       <label>Tên đăng nhập<input name="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9_.-]+" required></label>
       <label>Mật khẩu<input name="password" type="password" minlength="6" maxlength="128" required></label>
       <label>Số tài khoản<input name="accountNumber" inputmode="numeric" pattern="[0-9]{6,24}" minlength="6" maxlength="24" required></label>
-      <label>Số dư ban đầu (VND)<input name="balance" type="number" min="0" step="1" value="0" required></label>
+      <label>Số dư ban đầu (VND)<input name="balance" type="text" inputmode="numeric" data-thousands autocomplete="off" value="0" required></label>
       <button type="submit">Tạo tài khoản</button>
     </form><p class="hint">Tên đăng nhập và số tài khoản phải chưa được sử dụng.</p><p class="notice" id="create-notice" role="status"></p></section>
     <section class="panel"><h2>Cộng hoặc trừ số dư</h2><form id="adjust-form" class="form">
       <label>Tài khoản<select name="accountId" id="account" required></select></label>
       <label>Thao tác<select name="direction"><option value="add">Cộng tiền</option><option value="subtract">Trừ tiền</option></select></label>
-      <label>Số tiền (VND)<input name="amount" type="number" min="1" step="1" required></label>
+      <label>Số tiền (VND)<input name="amount" type="text" inputmode="numeric" data-thousands autocomplete="off" required></label>
       <button type="submit">Xác nhận</button>
     </form><p class="hint">Điều chỉnh được lưu vào lịch sử giao dịch. Không thể trừ vượt số dư hiện có.</p><p class="notice" id="notice" role="status"></p></section>
     <section class="table-wrap"><div id="accounts" class="empty">Đang tải tài khoản…</div></section>
     <section class="panel"><div class="history-heading"><h2>Lịch sử giao dịch toàn hệ thống</h2><button id="refresh-transactions" type="button">Tải lại</button></div><p class="hint">Các giao dịch được lưu trong Firebase, từ mới đến cũ (hiện tối đa 500 giao dịch gần nhất).</p><div id="all-transactions" class="empty">Đang tải lịch sử…</div></section>
   </section></main>
-  <script src="/api-client.js?v=20261103-3"></script><script>
+  <script src="/api-client.js?v=20261109-1"></script><script>
     const host=document.querySelector('#accounts'),select=document.querySelector('#account'),form=document.querySelector('#adjust-form'),notice=document.querySelector('#notice'),createForm=document.querySelector('#create-form'),createNotice=document.querySelector('#create-notice');
     const money=n=>`${Number(n).toLocaleString('vi-VN')} ₫`;
     const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     async function request(url,options={}){const r=await apiFetch(url,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});if(r.status===401){location.href='/bank/admin/login';throw Error('Vui lòng đăng nhập admin ngân hàng.')}const d=await r.json();if(!r.ok)throw Error(d.message||'Yêu cầu thất bại');return d}
     async function load(){try{const accounts=(await request('/api/bank/admin/accounts')).accounts;select.innerHTML=accounts.map(a=>`<option value="${esc(a.id)}">${esc(a.name)} · ${esc(a.accountNumber)}</option>`).join('');host.className='';host.innerHTML=accounts.length?`<table class="table"><thead><tr><th>CHỦ TÀI KHOẢN</th><th>SỐ TÀI KHOẢN</th><th>TÊN ĐĂNG NHẬP</th><th>SỐ DƯ</th><th>THAO TÁC</th></tr></thead><tbody>${accounts.map(a=>`<tr><td>${esc(a.name)}</td><td>${esc(a.accountNumber)}</td><td>${esc(a.username)}</td><td><strong>${money(a.balance)}</strong></td><td><button class="delete-account" data-delete-account="${esc(a.id)}" type="button">Xóa</button></td></tr>`).join('')}</tbody></table>`:'<p class="empty">Chưa có tài khoản.</p>'}catch(e){host.textContent=e.message}}
-    createForm.addEventListener('submit',async e=>{e.preventDefault();const fields=Object.fromEntries(new FormData(createForm));fields.balance=Number(fields.balance);try{await request('/api/bank/admin/accounts',{method:'POST',body:JSON.stringify(fields)});createNotice.textContent='Đã tạo tài khoản ngân hàng.';createForm.reset();createForm.elements.balance.value='0';await load()}catch(error){createNotice.textContent=error.message}});
+    createForm.addEventListener('submit',async e=>{e.preventDefault();const fields=Object.fromEntries(new FormData(createForm));fields.balance=window.parseThousandsInput(fields.balance);try{await request('/api/bank/admin/accounts',{method:'POST',body:JSON.stringify(fields)});createNotice.textContent='Đã tạo tài khoản ngân hàng.';createForm.reset();createForm.elements.balance.value='0';await load()}catch(error){createNotice.textContent=error.message}});
     host.addEventListener('click',async e=>{const button=e.target.closest('[data-delete-account]');if(!button)return;if(!confirm('Xóa tài khoản này? Tài khoản sẽ không thể đăng nhập hoặc thực hiện giao dịch mới; lịch sử giao dịch vẫn được giữ.'))return;try{await request(`/api/bank/admin/accounts/${encodeURIComponent(button.dataset.deleteAccount)}`,{method:'DELETE'});notice.textContent='Đã xóa (vô hiệu hóa) tài khoản.';await load()}catch(error){notice.textContent=error.message}});
-    form.addEventListener('submit',async e=>{e.preventDefault();if(!confirm('Xác nhận điều chỉnh số dư tài khoản này?'))return;const fields=Object.fromEntries(new FormData(form));fields.amount=Number(fields.amount);try{await request(`/api/bank/admin/accounts/${encodeURIComponent(fields.accountId)}/balance`,{method:'POST',body:JSON.stringify({direction:fields.direction,amount:fields.amount})});notice.textContent='Đã cập nhật số dư và lịch sử giao dịch.';form.elements.amount.value='';await load()}catch(error){notice.textContent=error.message}});
+    form.addEventListener('submit',async e=>{e.preventDefault();if(!confirm('Xác nhận điều chỉnh số dư tài khoản này?'))return;const fields=Object.fromEntries(new FormData(form));fields.amount=window.parseThousandsInput(fields.amount);try{await request(`/api/bank/admin/accounts/${encodeURIComponent(fields.accountId)}/balance`,{method:'POST',body:JSON.stringify({direction:fields.direction,amount:fields.amount})});notice.textContent='Đã cập nhật số dư và lịch sử giao dịch.';form.elements.amount.value='';await load()}catch(error){notice.textContent=error.message}});
     document.querySelector('#bank-logout').addEventListener('click',async e=>{e.preventDefault();await apiFetch('/api/bank/logout',{method:'POST'});clearAuthToken('bank');location.href='/bank/admin/login'});load();
   </script>
   <script>
