@@ -1,0 +1,34 @@
+﻿Các link web.app của dự án
+
+Cửa hàng
+https://loathongbaochuyenkhoan-aaab1.web.app/shop/
+
+Tài khoản khách hàng
+https://loathongbaochuyenkhoan-aaab1.web.app/account
+
+Đăng nhập quản trị
+https://loathongbaochuyenkhoan-aaab1.web.app/admin/login
+
+Quản lý đơn hàng (cần đăng nhập)
+https://loathongbaochuyenkhoan-aaab1.web.app/admin/orders
+
+Quản lý sản phẩm (cần đăng nhập)
+https://loathongbaochuyenkhoan-aaab1.web.app/admin/products
+
+Đăng nhập Mock Bank
+https://loathongbaochuyenkhoan-aaab1.web.app/bank/login
+
+Đăng nhập quản trị ngân hàng
+https://loathongbaochuyenkhoan-aaab1.web.app/bank/admin/login
+
+Dashboard ngân hàng (cần đăng nhập)
+https://loathongbaochuyenkhoan-aaab1.web.app/bank/dashboard
+
+Quét QR (cần đăng nhập)
+https://loathongbaochuyenkhoan-aaab1.web.app/bank/scanner
+
+Thanh toán
+https://loathongbaochuyenkhoan-aaab1.web.app/bank/payment
+
+Quản trị ngân hàng: tài khoản, số dư và lịch sử giao dịch toàn hệ thống (cần đăng nhập)
+https://loathongbaochuyenkhoan-aaab1.web.app/bank/admin/balance
