@@ -75,6 +75,26 @@
 
         }
 
+        #successInfo .row {
+
+            gap: 16px;
+
+        }
+
+        #successInfo .row span {
+
+            color: #64748b;
+
+        }
+
+        #successInfo .row b {
+
+            text-align: right;
+
+            overflow-wrap: anywhere;
+
+        }
+
 
         .error {
 
@@ -223,8 +243,8 @@
         <div id="successInfo"></div>
 
 
-        <button onclick="returnToShop()">
-            QUAY VỀ CỬA HÀNG
+        <button onclick="returnToBank()">
+            QUAY VỀ NGÂN HÀNG
         </button>
 
     </div>
@@ -403,34 +423,23 @@ async function confirmPayment() {
             .style.display = "block";
 
 
-        document
-            .getElementById("successInfo")
-            .innerHTML = `
-
-                <p>
-                    Đơn hàng:
-                    <b>${data.transaction.orderId}</b>
-                </p>
-
-                <p>
-                    Số tiền:
-                    <b>
-                        ${Number(data.transaction.amount)
-                            .toLocaleString("vi-VN")}
-                        VNĐ
-                    </b>
-                </p>
-
-                <p>
-                    Số dư còn lại:
-                    <b>
-                        ${Number(data.balance)
-                            .toLocaleString("vi-VN")}
-                        VNĐ
-                    </b>
-                </p>
-
-            `;
+        const transaction = data.transaction;
+        const recipient = `${transaction.recipientBankName || "MockBank"} · ${transaction.recipientAccountNumber || "---"} · ${transaction.recipientName || "---"}`;
+        const transactionTime = new Date(transaction.timestamp);
+        const timeText = Number.isNaN(transactionTime.getTime()) ? String(transaction.timestamp || "---") : transactionTime.toLocaleString("vi-VN");
+        const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
+        const details = [
+            ["Mã giao dịch", transaction.transactionId],
+            ["Mã đơn hàng", transaction.orderId],
+            ["Số tiền đã thanh toán", `${Number(transaction.amount).toLocaleString("vi-VN")} VNĐ`],
+            ["Tài khoản nhận tiền", recipient],
+            ["Nội dung chuyển khoản", transaction.content],
+            ["Thời gian giao dịch", timeText],
+            ["Số dư còn lại", `${Number(data.balance).toLocaleString("vi-VN")} VNĐ`]
+        ];
+        document.getElementById("successInfo").innerHTML = details.map(([label, value]) => `
+            <div class="row"><span>${escapeHtml(label)}</span><b>${escapeHtml(value || "---")}</b></div>
+        `).join("");
 
 
     } catch (error) {
@@ -447,12 +456,13 @@ async function confirmPayment() {
     }
 }
 
-function returnToShop() {
-    if (!order || !order.orderId) {
-        location.href = "/shop/";
+function returnToBank() {
+    const dashboard = "/bank/dashboard";
+    if (!sessionStorage.getItem("mockbank-bank-token")) {
+        location.href = `/bank/login?return=${encodeURIComponent(dashboard)}`;
         return;
     }
-    location.href = `/shop/checkout.html?order=${encodeURIComponent(order.orderId)}`;
+    location.href = dashboard;
 }
 
 
