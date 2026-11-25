@@ -158,7 +158,7 @@ async function createOrder(items, legacyAmount, customer, tableId, idempotencyKe
                 paymentMethod, qrToken: paymentMethod === "QR" ? crypto.randomBytes(24).toString("hex") : null, orderAccessToken: crypto.randomBytes(32).toString("hex"),
                 ...(paymentRecipient || {}),
                 customerId: customer?.uid || null, customerName: customer?.name || null, customerEmail: customer?.email || null,
-                createdAt: now, paidAt: null, transactionId: null, sender: null
+                createdAt: now, paymentWaitingAt: now, paidAt: null, transactionId: null, sender: null
             };
             transaction.create(orderRef, { orderId, ...orderData });
             transaction.create(requestRef, { orderId, createdAt: now });
@@ -203,6 +203,137 @@ async function getOrdersByCustomerId(customerId) {
     return snapshot.docs.map(doc => publicOrder(doc.data())).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+function isManualReviewEligible(order, now, delayMs) {
+    if (!order || order.paymentMethod !== "QR" || (order.paymentStatus || "PENDING") !== "PENDING") return false;
+    const excluded = ["CANCELLED", "CANCELED", "PROCESSING", "COMPLETED", "DONE"];
+    if (order.status === "PAID" || excluded.includes(String(order.status || "").toUpperCase()) || excluded.includes(String(order.orderStatus || "").toUpperCase())) return false;
+    const createdAt = Date.parse(order.paymentWaitingAt || order.createdAt || "");
+    return Number.isFinite(createdAt) && now - createdAt > delayMs;
+}
+
+async function getOrderPaymentHistory(orderId) {
+    const snapshot = await db.collection("orderPaymentHistory").where("orderId", "==", String(orderId)).get();
+    return snapshot.docs.map(document => document.data()).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+}
+
+function matchingOrderBankTransfer(transaction, order) {
+    return transaction.direction === "OUT"
+        && transaction.status !== "REFUNDED"
+        && Number(transaction.amount) === Number(order.amount)
+        && String(transaction.recipientAccountId || "") === String(order.recipientAccountId || "")
+        && String(transaction.recipientAccountNumber || "") === String(order.recipientAccountNumber || "")
+        && String(transaction.content || "") === `Thanh toan ${order.orderId}`;
+}
+
+async function getManualPaymentReview(orderId, delayMs) {
+    const order = await getOrderById(orderId);
+    if (!order) return { error: "ORDER_NOT_FOUND" };
+    const [history, bankTransactions] = await Promise.all([
+        getOrderPaymentHistory(orderId),
+        db.collection("bankTransactions").where("orderId", "==", String(orderId)).get()
+    ]);
+    const now = Date.now();
+    const waitingSince = Date.parse(order.paymentWaitingAt || order.createdAt || "");
+    const matched = bankTransactions.docs.map(document => document.data()).find(transaction => matchingOrderBankTransfer(transaction, order)) || null;
+    return {
+        order: publicOrder(order),
+        history,
+        eligible: isManualReviewEligible(order, now, delayMs),
+        delayMs,
+        waitedMs: Number.isFinite(waitingSince) ? Math.max(0, now - waitingSince) : 0,
+        matchingBankTransaction: matched ? {
+            transactionId: matched.transactionId || null,
+            amount: Number(matched.amount),
+            content: matched.content || "",
+            status: matched.status || "UNKNOWN",
+            timestamp: matched.timestamp || null
+        } : null
+    };
+}
+
+async function confirmManualPayment(orderId, { action, reason, verifiedEvidence, actor, delayMs }) {
+    if (!["PAID", "FAILED"].includes(action)) throw new Error("Trạng thái xác nhận không hợp lệ.");
+    const failureReason = String(reason || "").trim();
+    if (action === "FAILED" && (failureReason.length < 5 || failureReason.length > 500)) throw new Error("Vui lòng nhập lý do thất bại từ 5 đến 500 ký tự.");
+    if (action === "PAID" && verifiedEvidence !== true) throw new Error("Hãy xác nhận rằng bạn đã kiểm tra lịch sử giao dịch hoặc bằng chứng thanh toán.");
+
+    const orderRef = db.collection("orders").doc(String(orderId));
+    const settlementRef = db.collection("bankOrderSettlements").doc(String(orderId));
+    const historyRef = db.collection("orderPaymentHistory").doc(crypto.randomUUID());
+    const notificationRef = process.env.TTS_MODE === "queue" ? db.collection("speakerNotifications").doc(historyRef.id) : null;
+    const bankTransactionsQuery = db.collection("bankTransactions").where("orderId", "==", String(orderId));
+    const timestamp = new Date().toISOString();
+    return db.runTransaction(async transaction => {
+        const [orderSnapshot, settlementSnapshot, bankTransactionsSnapshot, notificationSnapshot] = await Promise.all([
+            transaction.get(orderRef), transaction.get(settlementRef), transaction.get(bankTransactionsQuery),
+            notificationRef ? transaction.get(notificationRef) : Promise.resolve(null)
+        ]);
+        if (!orderSnapshot.exists) throw new Error("Không tìm thấy đơn hàng.");
+        const order = orderSnapshot.data();
+        if (!isManualReviewEligible(order, Date.now(), delayMs)) {
+            if (order.paymentStatus === "PAID" || order.status === "PAID") throw new Error("Giao dịch đã được xác nhận thanh toán thành công.");
+            if (order.paymentStatus === "FAILED") throw new Error("Đơn hàng đã được nhân viên xử lý. Tải lại để xem trạng thái mới nhất.");
+            throw new Error("Đơn hàng chưa đủ điều kiện xác nhận thủ công.");
+        }
+
+        const matchingTransaction = bankTransactionsSnapshot.docs.map(document => document.data()).find(item => matchingOrderBankTransfer(item, order)) || null;
+        const settlement = settlementSnapshot.exists ? settlementSnapshot.data() : null;
+        if (action === "FAILED" && (matchingTransaction || ["PENDING", "COMPLETED"].includes(settlement?.status))) {
+            throw new Error("Đã phát hiện giao dịch MockBank phù hợp đang xử lý hoặc thành công. Không thể xác nhận thất bại; hãy chờ webhook hoặc xác minh giao dịch thành công.");
+        }
+        let settlementHistorySnapshots = [];
+        if (action === "PAID" && settlement?.status === "PENDING") {
+            settlementHistorySnapshots = await Promise.all([
+                settlement.senderHistoryId ? transaction.get(db.collection("bankTransactions").doc(settlement.senderHistoryId)) : Promise.resolve(null),
+                settlement.recipientHistoryId ? transaction.get(db.collection("bankTransactions").doc(settlement.recipientHistoryId)) : Promise.resolve(null)
+            ]);
+        }
+
+        const beforeStatus = order.paymentStatus || "PENDING";
+        const afterStatus = action;
+        const updated = {
+            ...order,
+            paymentStatus: afterStatus,
+            paymentConfirmationMethod: "MANUAL",
+            paymentConfirmedAt: timestamp,
+            paymentConfirmedBy: String(actor || "admin"),
+            paymentFailureReason: action === "FAILED" ? failureReason : null
+        };
+        if (action === "PAID") {
+            updated.status = "PAID";
+            updated.paidAt = timestamp;
+            if (matchingTransaction?.transactionId) updated.transactionId = String(matchingTransaction.transactionId);
+            if (matchingTransaction?.senderName) updated.sender = String(matchingTransaction.senderName);
+            if (matchingTransaction?.content) updated.content = String(matchingTransaction.content);
+        }
+        transaction.update(orderRef, updated);
+        transaction.create(historyRef, {
+            orderId: String(orderId), beforeStatus, afterStatus, method: "MANUAL",
+            actor: String(actor || "admin"), timestamp,
+            reason: action === "FAILED" ? failureReason : "Nhân viên xác nhận đã kiểm tra lịch sử giao dịch hoặc bằng chứng thanh toán.",
+            transactionId: matchingTransaction?.transactionId || null
+        });
+        if (action === "PAID" && settlement?.status === "PENDING") {
+            transaction.update(settlementRef, { status: "COMPLETED", finalizedAt: timestamp, finalizedBy: String(actor || "admin") });
+            const historyIds = [settlement.senderHistoryId, settlement.recipientHistoryId];
+            settlementHistorySnapshots.forEach((snapshot, index) => {
+                if (snapshot?.exists && historyIds[index]) transaction.update(db.collection("bankTransactions").doc(historyIds[index]), { status: "COMPLETED", finalizedAt: timestamp });
+            });
+        }
+        let notificationId = null;
+        if (action === "PAID" && notificationRef && !notificationSnapshot?.exists) {
+            notificationId = historyRef.id;
+            transaction.create(notificationRef, {
+                notificationId,
+                transactionId: matchingTransaction?.transactionId || `MANUAL-${orderId}-${historyRef.id}`,
+                orderId: String(orderId), amount: Number(order.amount), status: "PENDING", attempts: 0,
+                createdAt: timestamp, playedAt: null, workerId: null, leaseUntil: null, retryAfter: null, lastError: null
+            });
+        }
+        return { order: publicOrder(updated), notificationId };
+    });
+}
+
 async function recordPayment(orderId, transaction) {
     const transactionKey = crypto.createHash("sha256").update(String(transaction.transactionId)).digest("hex");
     const transactionRef = db.collection("transactions").doc(transactionKey);
@@ -220,9 +351,15 @@ async function recordPayment(orderId, transaction) {
         if (order.status === "PAID") return { error: "ORDER_ALREADY_PAID" };
         if (!Number.isSafeInteger(Number(transaction.amount)) || Number(transaction.amount) !== Number(order.amount)) return { error: "AMOUNT_MISMATCH" };
         const paidAt = new Date().toISOString();
-        const updated = { ...order, status: "PAID", paymentStatus: "PAID", paymentMethod: "QR", sender: String(transaction.sender || ""), transactionId: String(transaction.transactionId), content: String(transaction.content || ""), paidAt };
+        const updated = { ...order, status: "PAID", paymentStatus: "PAID", paymentMethod: "QR", sender: String(transaction.sender || ""), transactionId: String(transaction.transactionId), content: String(transaction.content || ""), paidAt, paymentConfirmationMethod: "WEBHOOK", paymentConfirmedAt: paidAt, paymentConfirmedBy: "MOCKBANK_WEBHOOK", paymentFailureReason: null };
         firestoreTransaction.update(orderRef, updated);
         firestoreTransaction.create(transactionRef, { transactionId: String(transaction.transactionId), orderId: order.orderId, amount: Number(transaction.amount), createdAt: paidAt });
+        const historyRef = db.collection("orderPaymentHistory").doc(transactionKey);
+        firestoreTransaction.create(historyRef, {
+            orderId: String(orderId), beforeStatus: order.paymentStatus || "PENDING", afterStatus: "PAID",
+            method: "WEBHOOK", actor: "MOCKBANK_WEBHOOK", timestamp: paidAt,
+            reason: "Webhook MockBank xác nhận giao dịch thành công.", transactionId: String(transaction.transactionId)
+        });
         let notificationId = null;
         if (process.env.TTS_MODE === "queue") {
             notificationId = transactionKey;
@@ -246,4 +383,4 @@ async function recordPayment(orderId, transaction) {
     });
 }
 
-module.exports = { getProducts, createProduct, updateProduct, deleteProduct, createOrder, getOrderById, getOrderByToken, getAllOrders, getOrdersByCustomerId, recordPayment, recordCashPayment, publicOrder };
+module.exports = { getProducts, createProduct, updateProduct, deleteProduct, createOrder, getOrderById, getOrderByToken, getAllOrders, getOrdersByCustomerId, isManualReviewEligible, getOrderPaymentHistory, getManualPaymentReview, confirmManualPayment, recordPayment, recordCashPayment, publicOrder };

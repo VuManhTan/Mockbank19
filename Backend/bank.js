@@ -356,6 +356,7 @@ async function settleOrderPayment({ senderUsername, recipientAccountId, recipien
     const senderRef = accounts.doc(sender.id);
     const recipientRef = accounts.doc(String(recipientAccountId));
     const settlementRef = db.collection("bankOrderSettlements").doc(safeOrderId);
+    const orderRef = db.collection("orders").doc(safeOrderId);
     const senderHistoryRef = transactions.doc();
     const recipientHistoryRef = transactions.doc();
     const transferId = String(transactionId || crypto.randomUUID());
@@ -363,14 +364,19 @@ async function settleOrderPayment({ senderUsername, recipientAccountId, recipien
     const memo = String(content || `Thanh toan ${safeOrderId}`).trim().slice(0, 200);
 
     return db.runTransaction(async transaction => {
-        const settlementSnapshot = await transaction.get(settlementRef);
+        const [settlementSnapshot, orderSnapshot] = await Promise.all([
+            transaction.get(settlementRef),
+            transaction.get(orderRef)
+        ]);
+        if (!orderSnapshot.exists) throw new Error("Không tìm thấy đơn hàng.");
+        if (orderSnapshot.get("paymentMethod") !== "QR") throw new Error("Đơn hàng không chọn thanh toán QR.");
+        if (orderSnapshot.get("status") === "PAID" || orderSnapshot.get("paymentStatus") === "PAID") throw new Error("Đơn hàng đã được thanh toán.");
         if (settlementSnapshot.exists) {
             if (settlementSnapshot.get("status") === "COMPLETED") throw new Error("Đơn hàng đã được thanh toán.");
             if (settlementSnapshot.get("status") === "PENDING") throw new Error("Giao dịch của đơn hàng đang được xử lý.");
         }
         const [senderSnapshot, recipientSnapshot] = await Promise.all([
-            transaction.get(senderRef),
-            transaction.get(recipientRef)
+            transaction.get(senderRef), transaction.get(recipientRef)
         ]);
         if (!senderSnapshot.exists || senderSnapshot.get("active") === false) throw new Error("Tài khoản gửi không còn hoạt động.");
         if (!recipientSnapshot.exists || recipientSnapshot.get("active") === false) throw new Error("Tài khoản nhận của đơn hàng đã bị khóa hoặc không còn hợp lệ.");

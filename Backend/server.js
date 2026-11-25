@@ -27,6 +27,9 @@ const {
     getOrderByToken,
     getAllOrders,
     getOrdersByCustomerId,
+    isManualReviewEligible,
+    getManualPaymentReview,
+    confirmManualPayment,
     recordPayment,
     recordCashPayment,
     publicOrder
@@ -78,6 +81,7 @@ const app = express();
 app.set("trust proxy", 1);
 
 const PORT = Number(process.env.PORT) || 4000;
+const MANUAL_PAYMENT_REVIEW_DELAY_MS = Math.max(1000, Number.parseInt(process.env.MANUAL_PAYMENT_REVIEW_DELAY_MS, 10) || 5 * 60 * 1000);
 
 
 // ==========================================
@@ -841,10 +845,56 @@ app.get(
 
 app.get("/api/admin/orders", requireAdminApi, async (req, res) => {
     try {
-        res.json({ success: true, orders: await getAllOrders() });
+        const orders = await getAllOrders();
+        res.json({
+            success: true,
+            manualPaymentReviewDelayMs: MANUAL_PAYMENT_REVIEW_DELAY_MS,
+            orders: orders.map(order => ({
+                ...order,
+                manualPaymentReviewEligible: isManualReviewEligible(order, Date.now(), MANUAL_PAYMENT_REVIEW_DELAY_MS)
+            }))
+        });
     } catch (error) {
         console.error("Lỗi tải danh sách đơn:", error);
         res.status(503).json({ success: false, message: "Không thể tải danh sách đơn hàng." });
+    }
+});
+
+app.get("/api/admin/orders/:id/payment-review", requireAdminApi, async (req, res) => {
+    try {
+        const review = await getManualPaymentReview(req.params.id, MANUAL_PAYMENT_REVIEW_DELAY_MS);
+        if (review.error === "ORDER_NOT_FOUND") return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng." });
+        res.json({ success: true, ...review });
+    } catch (error) {
+        console.error("Không thể kiểm tra giao dịch đơn hàng:", error);
+        res.status(503).json({ success: false, message: "Không thể kiểm tra trạng thái giao dịch lúc này." });
+    }
+});
+
+app.post("/api/admin/orders/:id/payment-review", requireAdminApi, async (req, res) => {
+    try {
+        const result = await confirmManualPayment(req.params.id, {
+            action: String(req.body?.action || "").toUpperCase(),
+            reason: req.body?.reason,
+            verifiedEvidence: req.body?.verifiedEvidence,
+            actor: req.auth.data,
+            delayMs: MANUAL_PAYMENT_REVIEW_DELAY_MS
+        });
+        if (result.order.paymentStatus === "PAID" && process.env.TTS_MODE !== "queue") {
+            await speakTransaction({
+                transactionId: result.order.transactionId || `MANUAL-${result.order.orderId}-${result.order.paymentConfirmedAt}`,
+                orderId: result.order.orderId,
+                sender: result.order.sender || "Nhân viên xác nhận thủ công",
+                amount: Number(result.order.amount),
+                content: `Thanh toán thủ công đơn ${result.order.orderId}`,
+                timestamp: result.order.paymentConfirmedAt
+            });
+        }
+        res.json({ success: true, order: result.order });
+    } catch (error) {
+        const clientError = /Vui lòng|Hãy xác nhận|không hợp lệ|Không tìm thấy đơn hàng/.test(error.message);
+        const conflict = /đã được xác nhận|đã được nhân viên xử lý|chưa đủ điều kiện|Đã phát hiện giao dịch/.test(error.message);
+        res.status(conflict ? 409 : clientError ? 400 : 503).json({ success: false, message: error.message || "Không thể cập nhật xác nhận giao dịch." });
     }
 });
 

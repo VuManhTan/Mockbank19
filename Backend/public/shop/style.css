@@ -14,3 +14,4 @@
 .table-icon{border:1px solid #f0d78f;border-radius:10px;background:linear-gradient(180deg,#fff9e7,#fff)}.table-icon:after{content:none}.table-icon svg{width:49px;height:49px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 
 .recipient-details{width:min(420px,100%);display:grid;gap:8px;margin:0 0 16px;text-align:left}.recipient-details>div{display:flex;justify-content:space-between;gap:16px;padding:8px 10px;background:#fff;border:1px solid var(--line);border-radius:5px;font-size:10px}.recipient-details span{color:#64748b}.recipient-details strong{color:var(--ink);text-align:right}
+.state-pill.failed{background:#fde8e7;color:#9d332e}

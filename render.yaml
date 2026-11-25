@@ -32,3 +32,5 @@ services:
         sync: false
       - key: TTS_MODE
         value: queue
+      - key: MANUAL_PAYMENT_REVIEW_DELAY_MS
+        value: 300000
