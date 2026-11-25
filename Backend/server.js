@@ -216,7 +216,11 @@ function optionalAuth(req, res, next) {
 // TRANG CHÍNH
 // ==========================================
 
-app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+app.get("/", (req, res) => {
+
+    res.redirect("/shop/");
+
+});
 
 app.get("/shop", (req, res) => res.redirect("/shop/"));
 app.get("/shop/checkout.html", (req, res) => res.sendFile(path.join(__dirname, "public", "shop", "checkout.html")));
