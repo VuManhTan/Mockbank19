@@ -117,11 +117,27 @@
 
         <div class="row">
 
-            <span>Người nhận</span>
+            <span>Ngân hàng nhận</span>
 
-            <b>
-                LOA THÔNG BÁO
-            </b>
+            <b id="recipientBank">MockBank</b>
+
+        </div>
+
+
+        <div class="row">
+
+            <span>Số tài khoản nhận</span>
+
+            <b id="recipientAccountNumber">---</b>
+
+        </div>
+
+
+        <div class="row">
+
+            <span>Chủ tài khoản nhận</span>
+
+            <b id="recipientName">---</b>
 
         </div>
 
@@ -271,6 +287,10 @@ async function loadPayment() {
         order =
             data.order;
 
+        if (!data.recipient || !data.recipient.id || !data.recipient.accountNumber || !data.recipient.name) {
+            throw new Error("Đơn hàng chưa có tài khoản nhận thanh toán hợp lệ.");
+        }
+
 
         document
             .getElementById("loading")
@@ -306,6 +326,10 @@ async function loadPayment() {
             .getElementById("sender")
             .textContent =
                 data.account.name;
+
+        document.getElementById("recipientBank").textContent = data.recipient.bankName || "MockBank";
+        document.getElementById("recipientAccountNumber").textContent = data.recipient.accountNumber;
+        document.getElementById("recipientName").textContent = data.recipient.name;
 
 
     } catch (error) {

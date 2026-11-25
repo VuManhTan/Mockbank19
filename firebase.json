@@ -30,6 +30,7 @@
       { "source": "/admin/login", "destination": "/admin/login.html" },
       { "source": "/admin/orders", "destination": "/admin/orders.html" },
       { "source": "/admin/products", "destination": "/admin/products.html" },
+      { "source": "/admin/payment-settings", "destination": "/admin/payment-settings.html" },
       { "source": "/bank/login", "destination": "/bank/login.html" },
       { "source": "/bank/user/login", "destination": "/bank/login.html" },
       { "source": "/bank/admin/login", "destination": "/bank/admin-login.html" },

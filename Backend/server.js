@@ -49,16 +49,19 @@ const {
     login,
     loginBankAdmin,
     getSafeAccount,
+    getPaymentAccounts,
+    getPaymentAccountSettings,
+    setPaymentAccount,
+    getBankAccountById,
     getAccountByUsername,
     updateBankAccountProfile,
     changeBankAccountPassword,
-    debitAccount,
-    refundAccount,
-    addTransaction,
-    setTransactionStatus,
     getTransactions,
     getAllTransactions,
     transferFunds,
+    settleOrderPayment,
+    setOrderPaymentSettlementStatus,
+    reverseOrderPaymentSettlement,
     getAllSafeAccounts,
     createBankAccount,
     registerBankAccount,
@@ -220,6 +223,7 @@ app.get("/shop/checkout.html", (req, res) => res.sendFile(path.join(__dirname, "
 app.get("/admin/login", (req, res) => res.sendFile(path.join(__dirname, "public", "admin", "login.html")));
 app.get("/admin/orders", (req, res) => res.sendFile(path.join(__dirname, "public", "admin", "orders.html")));
 app.get("/admin/products", (req, res) => res.sendFile(path.join(__dirname, "public", "admin", "products.html")));
+app.get("/admin/payment-settings", (req, res) => res.sendFile(path.join(__dirname, "public", "admin", "payment-settings.html")));
 app.get("/admin/balance", (_req, res) => res.redirect("/bank/admin/balance"));
 app.get("/bank/admin/balance", (_req, res) => res.sendFile(path.join(__dirname, "public", "bank", "admin-balance.html")));
 
@@ -268,6 +272,24 @@ app.post("/api/admin/login", async (req, res) => {
 });
 app.get("/api/admin/me", requireAdminApi, (req, res) => res.json({ success: true, username: req.auth.data }));
 app.post("/api/admin/logout", (_req, res) => res.json({ success: true }));
+app.get("/api/admin/payment-settings", requireAdminApi, async (_req, res) => {
+    try {
+        const [accounts, settings] = await Promise.all([getPaymentAccounts(), getPaymentAccountSettings()]);
+        res.json({ success: true, accounts, settings });
+    } catch (error) {
+        console.error("Không tải được tài khoản nhận thanh toán:", error);
+        res.status(503).json({ success: false, message: "Không thể tải danh sách tài khoản MockBank." });
+    }
+});
+app.put("/api/admin/payment-settings", requireAdminApi, async (req, res) => {
+    try {
+        const settings = await setPaymentAccount(req.body?.accountId, req.auth.data);
+        res.json({ success: true, settings });
+    } catch (error) {
+        res.status(/Không tìm thấy tài khoản|Không thể chọn|Hãy chọn|chưa có thông tin/.test(error.message) ? 400 : 503)
+            .json({ success: false, message: error.message || "Không thể lưu tài khoản nhận tiền." });
+    }
+});
 app.get("/api/bank/admin/accounts", requireBankAdminApi, async (_req, res) => {
     try {
         res.json({ success: true, accounts: await getAllSafeAccounts() });
@@ -655,18 +677,12 @@ app.post(
                 getBaseUrl(req);
 
 
-            const paymentUrl =
-                `${baseUrl}/bank/payment?token=${storedOrder.qrToken}`;
-
-
-            // ------------------------------
-            // Tạo QR
-            // ------------------------------
-
-            const qrCode =
-                await createQRCode(
-                    paymentUrl
-                );
+            let paymentUrl = null;
+            let qrCode = null;
+            if (storedOrder.paymentMethod === "QR") {
+                paymentUrl = `${baseUrl}/bank/payment?token=${storedOrder.qrToken}`;
+                qrCode = await createQRCode(paymentUrl);
+            }
 
 
             console.log(
@@ -725,12 +741,13 @@ app.post(
             );
 
 
-            res.status(500).json({
+            const invalidRecipient = /Cửa hàng chưa cấu hình tài khoản nhận thanh toán|Tài khoản nhận thanh toán/.test(error.message);
+            res.status(invalidRecipient ? 409 : 500).json({
 
                 success: false,
 
                 message:
-                    "Không thể tạo đơn hàng."
+                    invalidRecipient ? error.message : "Không thể tạo đơn hàng."
 
             });
 
@@ -918,6 +935,14 @@ app.get(
             });
         }
 
+        if (!order.recipientAccountId || !order.recipientAccountNumber || !order.recipientName) {
+            return res.status(409).json({ success: false, message: "Đơn hàng này chưa có tài khoản nhận thanh toán được lưu. Vui lòng liên hệ nhân viên để tạo đơn mới." });
+        }
+        const recipientAccount = await getBankAccountById(order.recipientAccountId);
+        if (!recipientAccount || recipientAccount.active === false || recipientAccount.accountNumber !== order.recipientAccountNumber) {
+            return res.status(409).json({ success: false, message: "Tài khoản nhận thanh toán của đơn hàng đã bị khóa hoặc không còn hợp lệ. Vui lòng liên hệ nhân viên." });
+        }
+
 
         const account =
             await getAccountByUsername(
@@ -945,6 +970,13 @@ app.get(
 
             },
 
+            recipient: {
+                id: order.recipientAccountId,
+                bankName: order.recipientBankName || "MockBank",
+                accountNumber: order.recipientAccountNumber,
+                name: order.recipientName
+            },
+
             account:
                 getSafeAccount(account)
 
@@ -958,285 +990,81 @@ app.get(
 // MOCK BANK THANH TOÁN
 // ==========================================
 
-app.post(
-    "/api/bank/pay",
-    requireBankApi,
-    async (req, res) => {
-
-        const {
-            token
-        } = req.body;
-
-
-        if (!token) {
-
-            return res.status(400).json({
-
-                success: false,
-
-                message:
-                    "Thiếu mã QR."
-
-            });
+app.post("/api/bank/pay", requireBankApi, async (req, res) => {
+    const token = req.body?.token;
+    if (!token) return res.status(400).json({ success: false, message: "Thiếu mã QR." });
+    try {
+        const order = await getOrderByToken(token);
+        if (!order) return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng." });
+        if (order.status === "PAID") return res.status(409).json({ success: false, message: "Đơn hàng đã được thanh toán." });
+        if (!order.recipientAccountId || !order.recipientAccountNumber || !order.recipientName) {
+            return res.status(409).json({ success: false, message: "Đơn hàng này không có tài khoản nhận thanh toán đã lưu. Vui lòng liên hệ nhân viên." });
         }
 
-
-        const order =
-            await getOrderByToken(token);
-
-
-        if (!order) {
-
-            return res.status(404).json({
-
-                success: false,
-
-                message:
-                    "Không tìm thấy đơn hàng."
-
-            });
-        }
-
-
-        if (order.status === "PAID") {
-
-            return res.status(400).json({
-
-                success: false,
-
-                message:
-                    "Đơn hàng đã được thanh toán."
-
-            });
-        }
-
-
-        const username =
-            req.auth.data;
-
-
-        const account =
-            await getAccountByUsername(
-                username
-            );
-
-
-        if (!account) {
-
-            return res.status(401).json({
-
-                success: false,
-
-                message:
-                    "Tài khoản không tồn tại."
-
-            });
-        }
-
-
-        // ==================================
-        // KIỂM TRA SỐ DƯ
-        // ==================================
-
-        if (
-            account.balance
-            <
-            order.amount
-        ) {
-
-            return res.status(400).json({
-
-                success: false,
-
-                message:
-                    "Số dư tài khoản không đủ."
-
-            });
-        }
-
-
-        // ==================================
-        // TRỪ TIỀN
-        // ==================================
-
-        try {
-
-            await debitAccount(
-                username,
-                order.amount
-            );
-
-        } catch (error) {
-
-            return res.status(400).json({
-
-                success: false,
-
-                message:
-                    error.message
-
-            });
-        }
-
-
-        // ==================================
-        // TẠO TRANSACTION
-        // ==================================
-
-        const transactionId =
-            "GD"
-            +
-            Date.now()
-            +
-            crypto
-                .randomBytes(3)
-                .toString("hex");
-
-
-        const transaction = {
-
+        const username = req.auth.data;
+        const account = await getAccountByUsername(username);
+        if (!account) return res.status(401).json({ success: false, message: "Tài khoản không tồn tại." });
+        const transactionId = `GD${Date.now()}${crypto.randomBytes(6).toString("hex")}`;
+        const content = `Thanh toan ${order.orderId}`;
+        const settlement = await settleOrderPayment({
+            senderUsername: username,
+            recipientAccountId: order.recipientAccountId,
+            recipientAccountNumber: order.recipientAccountNumber,
+            amount: order.amount,
+            orderId: order.orderId,
             transactionId,
-
-            orderId:
-                order.orderId,
-
-            sender:
-                account.name,
-
-            senderAccount:
-                account.accountNumber,
-
-            amount:
-                order.amount,
-
-            content:
-                `Thanh toan ${order.orderId}`,
-
-            timestamp:
-                new Date().toISOString()
-
+            content
+        });
+        const transaction = {
+            transactionId,
+            transferId: settlement.transferId,
+            orderId: order.orderId,
+            sender: account.name,
+            senderAccount: account.accountNumber,
+            recipientAccountId: order.recipientAccountId,
+            recipientAccountNumber: order.recipientAccountNumber,
+            recipientName: order.recipientName,
+            recipientBankName: order.recipientBankName || "MockBank",
+            amount: Number(order.amount),
+            content,
+            timestamp: new Date().toISOString()
         };
 
-
-        // ==================================
-        // LƯU LỊCH SỬ MOCK BANK
-        // ==================================
-
         try {
-            await addTransaction(username, transaction);
-        } catch (error) {
-            await refundAccount(username, order.amount);
-            console.error("Không lưu được giao dịch Mock Bank:", error.message);
-            return res.status(503).json({ success: false, message: "Không lưu được giao dịch, số dư đã được hoàn lại." });
-        }
-
-
-        // ==================================
-        // GỬI WEBHOOK
-        // ==================================
-
-        try {
-
-            const webhookResponse =
-                await fetch(
-                    `http://127.0.0.1:${PORT}/webhook/bank`,
-                    {
-
-                        method: "POST",
-
-                        headers: {
-
-                            "Content-Type":
-                                "application/json",
-                            "x-mock-bank-secret":
-                                process.env.MOCK_BANK_WEBHOOK_SECRET || ""
-
-                        },
-
-                        body:
-                            JSON.stringify(
-                                transaction
-                            )
-
-                    }
-                );
-
-
-            const webhookData =
-                await webhookResponse.json();
-
-
-            if (
-                !webhookResponse.ok
-                ||
-                !webhookData.success
-            ) {
-
-                throw new Error(
-                    "Webhook không xác nhận giao dịch."
-                );
-            }
-
-
-        } catch (error) {
-
-            console.error(
-                "Lỗi webhook:",
-                error
-            );
-
-
-            // Hoàn tiền nếu webhook thất bại
-
-            await refundAccount(
-                username,
-                order.amount
-            );
-            await setTransactionStatus(transactionId, "REFUNDED");
-
-
-            return res.status(500).json({
-
-                success: false,
-
-                message:
-                    "Không thể xác nhận giao dịch."
-
+            const webhookResponse = await fetch(`http://127.0.0.1:${PORT}/webhook/bank`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-mock-bank-secret": process.env.MOCK_BANK_WEBHOOK_SECRET || "" },
+                body: JSON.stringify(transaction)
             });
+            const webhookData = await webhookResponse.json();
+            if (!webhookResponse.ok || !webhookData.success) throw new Error("Webhook không xác nhận giao dịch.");
+        } catch (error) {
+            console.error("Lỗi webhook:", error);
+            const latestOrder = await getOrderById(order.orderId);
+            if (latestOrder?.status === "PAID") {
+                await setOrderPaymentSettlementStatus(order.orderId, "COMPLETED");
+            } else {
+                const reversal = await reverseOrderPaymentSettlement(order.orderId);
+                if (!reversal.success) {
+                    console.error("Không hoàn tác được chuyển khoản đơn hàng:", reversal.error);
+                    return res.status(503).json({ success: false, message: "Giao dịch chưa được xác nhận và cần nhân viên kiểm tra hoàn tiền." });
+                }
+                return res.status(500).json({ success: false, message: "Không thể xác nhận giao dịch; tiền đã được hoàn lại." });
+            }
         }
-
-
-        // ==================================
-        // TRẢ KẾT QUẢ
-        // ==================================
 
         try {
-            await setTransactionStatus(transactionId, "COMPLETED");
+            await setOrderPaymentSettlementStatus(order.orderId, "COMPLETED");
         } catch (error) {
-            console.error("Không cập nhật được trạng thái giao dịch Mock Bank:", error.message);
+            console.error("Không cập nhật được lịch sử thanh toán:", error.message);
         }
-        const updatedAccount =
-            await getAccountByUsername(
-                username
-            );
-
-
-        res.json({
-
-            success: true,
-
-            message:
-                "Thanh toán thành công.",
-
-            transaction,
-
-            balance:
-                updatedAccount.balance
-
-        });
-
+        const updatedAccount = await getAccountByUsername(username);
+        res.json({ success: true, message: "Thanh toán thành công.", transaction, balance: updatedAccount?.balance ?? settlement.balance });
+    } catch (error) {
+        const clientError = /Số dư không đủ|Tài khoản gửi|Tài khoản nhận|Không thể thanh toán|đang được xử lý|đã được thanh toán|không còn hoạt động|không khớp|vượt giới hạn/.test(error.message);
+        res.status(clientError ? 400 : 503).json({ success: false, message: clientError ? error.message : "Không thể thực hiện thanh toán lúc này." });
     }
-);
+});
 
 
 // ==========================================
@@ -1364,6 +1192,20 @@ app.post(
                         "Không tìm thấy đơn hàng."
 
                 });
+            }
+
+            if (order.recipientAccountId) {
+                const recipientAccount = await getBankAccountById(order.recipientAccountId);
+                const recipientMatches = recipientAccount
+                    && recipientAccount.active !== false
+                    && recipientAccount.accountNumber === order.recipientAccountNumber
+                    && String(transaction.recipientAccountId || "") === String(order.recipientAccountId)
+                    && String(transaction.recipientAccountNumber || "") === String(order.recipientAccountNumber)
+                    && String(transaction.recipientBankName || "") === String(order.recipientBankName || "MockBank")
+                    && String(transaction.content || "") === `Thanh toan ${order.orderId}`;
+                if (!recipientMatches) {
+                    return res.status(400).json({ success: false, message: "Tài khoản nhận hoặc nội dung giao dịch không khớp mã QR của đơn hàng." });
+                }
             }
 
 

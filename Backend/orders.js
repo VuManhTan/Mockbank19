@@ -114,6 +114,8 @@ async function createOrder(items, legacyAmount, customer, tableId, idempotencyKe
 
     const idempotencyId = crypto.createHash("sha256").update(String(safeIdempotencyKey)).digest("hex");
     const requestRef = db.collection("orderRequests").doc(idempotencyId);
+    const paymentSettingsRef = db.collection("appSettings").doc("paymentRecipient");
+    const bankAccounts = db.collection("bankAccounts");
     const now = new Date().toISOString();
     return db.runTransaction(async transaction => {
         const requestSnapshot = await transaction.get(requestRef);
@@ -121,6 +123,28 @@ async function createOrder(items, legacyAmount, customer, tableId, idempotencyKe
             const orderSnapshot = await transaction.get(db.collection("orders").doc(requestSnapshot.get("orderId")));
             if (orderSnapshot.exists) return orderSnapshot.data();
             throw new Error("Không tìm thấy đơn hàng đã tạo cho yêu cầu này.");
+        }
+        let paymentRecipient = null;
+        if (paymentMethod === "QR") {
+            const settingsSnapshot = await transaction.get(paymentSettingsRef);
+            const recipientId = settingsSnapshot.exists ? String(settingsSnapshot.get("accountId") || "") : "";
+            if (!recipientId) throw new Error("Cửa hàng chưa cấu hình tài khoản nhận thanh toán. Vui lòng liên hệ nhân viên.");
+            const recipientSnapshot = await transaction.get(bankAccounts.doc(recipientId));
+            if (!recipientSnapshot.exists || recipientSnapshot.get("active") === false) {
+                throw new Error("Tài khoản nhận thanh toán đã bị khóa hoặc không còn hợp lệ. Vui lòng liên hệ nhân viên.");
+            }
+            const recipientData = recipientSnapshot.data();
+            const recipientAccountNumber = String(recipientData.accountNumber || "");
+            const recipientName = String(recipientData.name || "").trim();
+            if (!/^\d{6,24}$/.test(recipientAccountNumber) || !recipientName) {
+                throw new Error("Tài khoản nhận thanh toán chưa có thông tin hợp lệ. Vui lòng liên hệ nhân viên.");
+            }
+            paymentRecipient = {
+                recipientAccountId: recipientSnapshot.id,
+                recipientAccountNumber,
+                recipientName,
+                recipientBankName: String(recipientData.bankName || "MockBank")
+            };
         }
         for (let attempt = 0; attempt < 10; attempt++) {
             const letters = String.fromCharCode(65 + crypto.randomInt(26), 65 + crypto.randomInt(26));
@@ -131,7 +155,8 @@ async function createOrder(items, legacyAmount, customer, tableId, idempotencyKe
             if (orderSnapshot.exists) continue;
             const orderData = {
                 items: orderItems, amount, tableId: String(tableId), status: "UNPAID", orderStatus: "NEW", paymentStatus: "PENDING",
-                paymentMethod, qrToken: crypto.randomBytes(24).toString("hex"), orderAccessToken: crypto.randomBytes(32).toString("hex"),
+                paymentMethod, qrToken: paymentMethod === "QR" ? crypto.randomBytes(24).toString("hex") : null, orderAccessToken: crypto.randomBytes(32).toString("hex"),
+                ...(paymentRecipient || {}),
                 customerId: customer?.uid || null, customerName: customer?.name || null, customerEmail: customer?.email || null,
                 createdAt: now, paidAt: null, transactionId: null, sender: null
             };
