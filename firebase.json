@@ -23,9 +23,6 @@
       "**/.*",
       "**/node_modules/**"
     ],
-    "redirects": [
-      { "source": "/", "destination": "/shop/", "type": 302 }
-    ],
     "rewrites": [
       { "source": "/admin/login", "destination": "/admin/login.html" },
       { "source": "/admin/orders", "destination": "/admin/orders.html" },
