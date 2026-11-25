@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#071521">
+  <title>Gokku · Trợ lý AI</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand-mark" aria-hidden="true">✦</div>
+      <div class="brand"><strong>Gokku</strong><span>TRỢ LÝ AI</span></div>
+      <div class="connection" id="connection"><i></i><span>Đang kết nối</span></div>
+    </header>
+
+    <section class="stage" aria-label="Trợ lý robot">
+      <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+      <div class="soundwave" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b><b></b><b></b></div>
+      <svg class="robot" viewBox="0 0 240 240" role="img" aria-label="Robot Gokku">
+        <defs>
+          <linearGradient id="shell" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#f6fdff"/><stop offset="1" stop-color="#b9e7f4"/></linearGradient>
+          <linearGradient id="face" x1="0" x2="0.9" y1="0" y2="1"><stop stop-color="#123e59"/><stop offset="1" stop-color="#092236"/></linearGradient>
+          <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        <ellipse class="shadow" cx="120" cy="218" rx="49" ry="8"/>
+        <path class="antenna" d="M120 31V19"/><circle class="antenna-tip" cx="120" cy="15" r="7"/>
+        <path class="body" d="M70 143q0-16 17-20h66q17 4 17 20v48q0 12-12 12H82q-12 0-12-12z" fill="url(#shell)"/>
+        <path class="body-detail" d="M95 163h50q8 0 8 8t-8 8H95q-8 0-8-8t8-8"/>
+        <path class="arm" d="M70 151l-13 12v24l13 4M170 151l13 12v24l-13 4"/>
+        <path class="head" d="M54 74q0-24 24-29 42-9 84 0 24 5 24 29v47q0 25-24 31-42 10-84 0-24-6-24-31z" fill="url(#shell)"/>
+        <rect class="face" x="68" y="62" width="104" height="72" rx="26" fill="url(#face)"/>
+        <g class="eyes" filter="url(#glow)"><ellipse class="eye left-eye" cx="96" cy="94" rx="7" ry="10"/><ellipse class="eye right-eye" cx="144" cy="94" rx="7" ry="10"/></g>
+        <path class="mouth" d="M108 115q12 10 24 0"/>
+        <path class="cheek" d="M75 111h9M156 111h9"/>
+        <path class="ear" d="M54 88h-8v22h8M186 88h8v22h-8"/>
+        <circle class="chest-light" cx="120" cy="151" r="4"/>
+      </svg>
+      <div class="status"><span class="status-dot"></span><strong id="stateText">Đang chờ bạn</strong><small id="hintText">Chạm micro để trò chuyện</small></div>
+    </section>
+
+    <section class="conversation" aria-label="Hội thoại" aria-live="polite">
+      <div class="messages" id="messages">
+        <article class="message bot"><span class="avatar">✦</span><p>Xin chào! Mình có thể giúp gì cho bạn?</p></article>
+      </div>
+    </section>
+
+    <footer class="controls">
+      <button class="clear-button" id="clearButton" aria-label="Xóa hội thoại" title="Xóa hội thoại">⌫</button>
+      <button class="mic-button" id="micButton" aria-label="Bắt đầu lắng nghe"><span class="mic-icon">●</span><span id="micLabel">BẮT ĐẦU</span></button>
+      <span class="device">RASPBERRY PI · GOKKU</span>
+    </footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
