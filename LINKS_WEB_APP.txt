@@ -3,9 +3,6 @@
 Cửa hàng
 https://loathongbaochuyenkhoan-aaab1.web.app/shop/
 
-Tài khoản khách hàng
-https://loathongbaochuyenkhoan-aaab1.web.app/account
-
 Đăng nhập quản trị
 https://loathongbaochuyenkhoan-aaab1.web.app/admin/login
 

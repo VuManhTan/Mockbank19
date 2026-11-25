@@ -24,11 +24,9 @@
       "**/node_modules/**"
     ],
     "redirects": [
-      { "source": "/", "destination": "/shop/", "type": 302 },
-      { "source": "/account/", "destination": "/account", "type": 301 }
+      { "source": "/", "destination": "/shop/", "type": 302 }
     ],
     "rewrites": [
-      { "source": "/account", "destination": "/shop/account.html" },
       { "source": "/admin/login", "destination": "/admin/login.html" },
       { "source": "/admin/orders", "destination": "/admin/orders.html" },
       { "source": "/admin/products", "destination": "/admin/products.html" },

@@ -28,6 +28,7 @@ const {
     getAllOrders,
     getOrdersByCustomerId,
     recordPayment,
+    recordCashPayment,
     publicOrder
 } = require("./orders");
 
@@ -104,7 +105,7 @@ app.use((req, res, next) => {
     const origin = req.get("Origin");
     if (origin && allowedOrigins.has(origin)) {
         res.set("Access-Control-Allow-Origin", origin);
-        res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Order-Access-Token, Idempotency-Key");
         res.set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
         res.vary("Origin");
     }
@@ -216,8 +217,6 @@ app.get("/", (req, res) => {
 
 app.get("/shop", (req, res) => res.redirect("/shop/"));
 app.get("/shop/checkout.html", (req, res) => res.sendFile(path.join(__dirname, "public", "shop", "checkout.html")));
-app.get("/account", (req, res) => res.sendFile(path.join(__dirname, "public", "shop", "account.html")));
-app.get("/account/", (req, res) => res.sendFile(path.join(__dirname, "public", "shop", "account.html")));
 app.get("/admin/login", (req, res) => res.sendFile(path.join(__dirname, "public", "admin", "login.html")));
 app.get("/admin/orders", (req, res) => res.sendFile(path.join(__dirname, "public", "admin", "orders.html")));
 app.get("/admin/products", (req, res) => res.sendFile(path.join(__dirname, "public", "admin", "products.html")));
@@ -612,12 +611,13 @@ app.get("/api/products", async (req, res) => {
 
 app.post(
     "/api/orders",
-    requireCustomerApi,
+    optionalAuth,
     async (req, res) => {
 
         try {
 
-            const { items, product, amount } = req.body;
+            const { items, product, amount, tableId } = req.body || {};
+            const idempotencyKey = req.get("Idempotency-Key");
             if ((!Array.isArray(items) || items.length === 0) && !product) {
 
                 return res.status(400).json({
@@ -639,7 +639,10 @@ app.post(
                 createOrder(
                     items || product,
                     items ? undefined : amount,
-                    req.auth.data
+                    req.auth?.role === "customer" ? req.auth.data : null,
+                    tableId,
+                    idempotencyKey,
+                    req.body?.paymentMethod
                 );
             const storedOrder = await order;
 
@@ -705,6 +708,8 @@ app.post(
 
                 order: publicOrder(storedOrder),
 
+                orderAccessToken: storedOrder.orderAccessToken,
+
                 qrCode,
 
                 paymentUrl
@@ -766,10 +771,6 @@ app.get(
     optionalAuth,
     async (req, res) => {
 
-        if (!req.auth || !["customer", "admin"].includes(req.auth.role)) {
-            return res.status(401).json({ success: false, message: "Đăng nhập để xem đơn hàng." });
-        }
-
         const order =
             await getOrderById(
                 req.params.id
@@ -788,7 +789,19 @@ app.get(
             });
         }
 
-        if (req.auth.role === "customer" && order.customerId !== req.auth.data.uid) {
+        const accessToken = req.get("X-Order-Access-Token") || "";
+        const expectedToken = String(order.orderAccessToken || "");
+        const accessBytes = Buffer.from(accessToken);
+        const expectedBytes = Buffer.from(expectedToken);
+        const hasOrderAccess = accessBytes.length === expectedBytes.length && accessBytes.length > 0 && crypto.timingSafeEqual(accessBytes, expectedBytes);
+        if (order.customerId && (!req.auth || !["customer", "admin"].includes(req.auth.role))) {
+            return res.status(401).json({ success: false, message: "Đăng nhập để xem đơn hàng." });
+        }
+        if (!order.customerId && req.auth?.role !== "admin" && !hasOrderAccess) {
+            return res.status(401).json({ success: false, message: "Không có quyền xem đơn hàng này." });
+        }
+
+        if (req.auth?.role === "customer" && order.customerId !== req.auth.data.uid) {
             return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng." });
         }
 
@@ -815,6 +828,19 @@ app.get("/api/admin/orders", requireAdminApi, async (req, res) => {
     } catch (error) {
         console.error("Lỗi tải danh sách đơn:", error);
         res.status(503).json({ success: false, message: "Không thể tải danh sách đơn hàng." });
+    }
+});
+
+app.post("/api/admin/orders/:id/cash-payment", requireAdminApi, async (req, res) => {
+    try {
+        const result = await recordCashPayment(req.params.id, req.auth.data);
+        if (result.error === "ORDER_NOT_FOUND") return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng." });
+        if (result.error === "CASH_NOT_SELECTED") return res.status(400).json({ success: false, message: "Đơn hàng không chọn thanh toán tiền mặt." });
+        if (result.error === "ORDER_ALREADY_PAID") return res.status(409).json({ success: false, message: "Đơn hàng đã được thanh toán." });
+        res.json({ success: true, order: result.order });
+    } catch (error) {
+        console.error("Lỗi xác nhận tiền mặt:", error);
+        res.status(503).json({ success: false, message: "Không thể xác nhận thanh toán tiền mặt." });
     }
 });
 
@@ -1486,7 +1512,6 @@ app.listen(
             console.log(`Dashboard Bank:  ${base}/bank/dashboard (cần đăng nhập)`);
             console.log(`Quét QR:         ${base}/bank/scanner (cần đăng nhập)`);
             console.log(`Xác nhận trả tiền:${base}/bank/payment?token=[QR_TOKEN]`);
-            console.log(`Tài khoản shop:  ${base}/account/`);
             console.log(`Admin đăng nhập: ${base}/admin/login`);
             console.log(`Quản lý đơn:     ${base}/admin/orders (admin)`);
             console.log(`Quản lý sản phẩm:${base}/admin/products (admin)`);
