@@ -1199,10 +1199,10 @@ app.post(
                 const recipientMatches = recipientAccount
                     && recipientAccount.active !== false
                     && recipientAccount.accountNumber === order.recipientAccountNumber
-                    && String(transaction.recipientAccountId || "") === String(order.recipientAccountId)
-                    && String(transaction.recipientAccountNumber || "") === String(order.recipientAccountNumber)
-                    && String(transaction.recipientBankName || "") === String(order.recipientBankName || "MockBank")
-                    && String(transaction.content || "") === `Thanh toan ${order.orderId}`;
+                    && (!transaction.recipientAccountId || String(transaction.recipientAccountId) === String(order.recipientAccountId))
+                    && (!transaction.recipientAccountNumber || String(transaction.recipientAccountNumber) === String(order.recipientAccountNumber))
+                    && (!transaction.recipientBankName || String(transaction.recipientBankName) === String(order.recipientBankName || "MockBank"))
+                    && (!transaction.content || String(transaction.content) === `Thanh toan ${order.orderId}`);
                 if (!recipientMatches) {
                     return res.status(400).json({ success: false, message: "Tài khoản nhận hoặc nội dung giao dịch không khớp mã QR của đơn hàng." });
                 }
